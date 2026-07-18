@@ -34,7 +34,10 @@ api-tester-kit/
 │   ├── 11-COLLECTION-RUNNER.md    # Collection runner
 │   ├── 12-PERSISTENCE.md          # Persistence layer
 │   ├── 13-KEYBOARD-SHORTCUTS.md   # Keyboard shortcuts
-│   └── 14-FOLDER-STRUCTURE.md     # This file
+│   ├── 14-FOLDER-STRUCTURE.md     # This file
+│   ├── 15-GRAPHQL.md              # GraphQL playground
+│   ├── 16-WEBSOCKET.md            # WebSocket client
+│   └── 17-GRPC.md                 # gRPC client
 │
 ├── public/                        # Static assets
 │   ├── favicon.ico                # Favicon
@@ -62,10 +65,10 @@ api-tester-kit/
     │   │   └── page.tsx           # Environment variables
     │   │
     │   ├── graphql/
-    │   │   └── page.tsx           # GraphQL (placeholder)
+    │   │   └── page.tsx           # GraphQL playground
     │   │
     │   ├── grpc/
-    │   │   └── page.tsx           # gRPC (placeholder)
+    │   │   └── page.tsx           # gRPC client
     │   │
     │   ├── history/
     │   │   └── page.tsx           # Request history
@@ -77,7 +80,7 @@ api-tester-kit/
     │   │   └── page.tsx           # App settings
     │   │
     │   └── websocket/
-    │       └── page.tsx           # WebSocket (placeholder)
+    │       └── page.tsx           # WebSocket client
     │
     ├── components/                # Shared components
     │   ├── ui/                    # shadcn/ui components
@@ -137,6 +140,7 @@ api-tester-kit/
     │   ├── cn.ts                  # className utility (duplicate)
     │   ├── code-generator.ts      # Multi-language code gen
     │   ├── import-export.ts       # Format converters
+    │   ├── indexeddb-storage.ts   # Zustand IndexedDB adapter
     │   ├── script-runner.ts       # Script execution sandbox
     │   ├── storage.ts             # IndexedDB persistence
     │   └── utils.ts               # shadcn/ui cn() utility
@@ -164,13 +168,13 @@ api-tester-kit/
 | `src/components/ui/` | 15 | shadcn/ui primitives |
 | `src/features/` | 9 | Feature-specific components |
 | `src/hooks/` | 1 | Custom React hooks |
-| `src/lib/` | 7 | Core libraries |
+| `src/lib/` | 8 | Core libraries |
 | `src/store/` | 5 | Zustand stores |
 | `src/types/` | 1 | Type definitions |
 | `src/utils/` | 1 | Utility functions |
-| `docs/` | 15 | Documentation |
+| `docs/` | 18 | Documentation |
 | Root | 10 | Config files |
-| **Total** | **~90** | |
+| **Total** | **~95** | |
 
 ## Naming Conventions
 

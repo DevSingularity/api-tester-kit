@@ -21,6 +21,10 @@ A modern, production-grade API testing platform built with Next.js 16, React 19,
 | [Persistence](./12-PERSISTENCE.md) | IndexedDB storage layer for offline support |
 | [Keyboard Shortcuts](./13-KEYBOARD-SHORTCUTS.md) | All keyboard shortcuts and command palette |
 | [Folder Structure](./14-FOLDER-STRUCTURE.md) | Complete project directory layout |
+| [GraphQL](./15-GRAPHQL.md) | GraphQL playground features |
+| [WebSocket](./16-WEBSOCKET.md) | WebSocket client features |
+| [gRPC](./17-GRPC.md) | gRPC client features |
+| [Testing](./18-TESTING.md) | Vitest testing setup and test structure |
 
 ## Tech Stack
 
@@ -50,9 +54,9 @@ A modern, production-grade API testing platform built with Next.js 16, React 19,
 | `/history` | Request history with search | Complete |
 | `/settings` | Theme and proxy settings | Complete |
 | `/runner` | Collection runner with sequential execution | Complete |
-| `/graphql` | GraphQL playground | Placeholder |
-| `/websocket` | WebSocket client | Placeholder |
-| `/grpc` | gRPC client | Placeholder |
+| `/graphql` | GraphQL playground | Complete |
+| `/websocket` | WebSocket client | Complete |
+| `/grpc` | gRPC client | Complete |
 | `/api/proxy` | CORS proxy API route | Complete |
 
 ## Running
@@ -66,4 +70,7 @@ pnpm build && pnpm start
 
 # Lint
 pnpm lint
+
+# Test
+pnpm test:run
 ```
