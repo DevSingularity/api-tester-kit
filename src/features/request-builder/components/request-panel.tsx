@@ -6,6 +6,7 @@ import { ParamsEditor } from "./params-editor";
 import { HeadersEditor } from "./headers-editor";
 import { BodyEditor } from "./body-editor";
 import { AuthEditor } from "./auth-editor";
+import { ScriptEditor } from "./script-editor";
 
 export function RequestPanel() {
   const { getActiveRequest } = useRequestStore();
@@ -47,6 +48,12 @@ export function RequestPanel() {
           >
             Auth
           </TabsTrigger>
+          <TabsTrigger
+            value="scripts"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-3 py-1.5 text-xs font-medium"
+          >
+            Scripts
+          </TabsTrigger>
         </TabsList>
       </div>
       <div className="flex-1 overflow-auto">
@@ -61,6 +68,9 @@ export function RequestPanel() {
         </TabsContent>
         <TabsContent value="auth" className="m-0 p-2">
           <AuthEditor />
+        </TabsContent>
+        <TabsContent value="scripts" className="m-0 p-2">
+          <ScriptEditor />
         </TabsContent>
       </div>
     </Tabs>

@@ -8,6 +8,7 @@ import { Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef } from "react";
 import { JsonViewer } from "@/components/json-viewer";
+import { CodeGenerator } from "@/components/code-generator-panel";
 
 export function ResponseViewer() {
   const { getActiveResponse, loading, getActiveRequest } = useRequestStore();
@@ -93,6 +94,12 @@ export function ResponseViewer() {
             >
               Headers
             </TabsTrigger>
+            <TabsTrigger
+              value="code"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
+            >
+              Code
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -109,6 +116,10 @@ export function ResponseViewer() {
               </div>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="code" className="flex-1 m-0 overflow-auto p-3">
+          <CodeGenerator />
         </TabsContent>
       </Tabs>
     </div>
