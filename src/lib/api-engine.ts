@@ -1,0 +1,155 @@
+import type { ApiRequest, ApiResponse, ProxyMode } from "@/types";
+
+interface SendRequestOptions {
+  request: ApiRequest;
+  proxyMode: ProxyMode;
+  variables: Record<string, string>;
+  signal?: AbortSignal;
+}
+
+function substituteVariables(
+  template: string,
+  variables: Record<string, string>
+): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => variables[key] ?? `{{${key}}}`);
+}
+
+function buildHeaders(
+  request: ApiRequest,
+  variables: Record<string, string>
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const h of request.headers) {
+    if (h.enabled && h.key) {
+      headers[substituteVariables(h.key, variables)] = substituteVariables(
+        h.value,
+        variables
+      );
+    }
+  }
+  if (request.auth.type === "bearer" && request.auth.bearer?.token) {
+    headers["Authorization"] = `Bearer ${substituteVariables(
+      request.auth.bearer.token,
+      variables
+    )}`;
+  }
+  if (request.auth.type === "basic" && request.auth.basic) {
+    const creds = btoa(
+      `${substituteVariables(
+        request.auth.basic.username,
+        variables
+      )}:${substituteVariables(request.auth.basic.password, variables)}`
+    );
+    headers["Authorization"] = `Basic ${creds}`;
+  }
+  if (request.auth.type === "apikey" && request.auth.apikey) {
+    if (request.auth.apikey.addTo === "header") {
+      headers[substituteVariables(request.auth.apikey.key, variables)] =
+        substituteVariables(request.auth.apikey.value, variables);
+    }
+  }
+  return headers;
+}
+
+function buildUrl(
+  request: ApiRequest,
+  variables: Record<string, string>
+): string {
+  let url = substituteVariables(request.url, variables);
+
+  const searchParams = new URLSearchParams();
+  for (const p of request.params) {
+    if (p.enabled && p.key) {
+      searchParams.append(
+        substituteVariables(p.key, variables),
+        substituteVariables(p.value, variables)
+      );
+    }
+  }
+  const qs = searchParams.toString();
+  if (qs) {
+    url += (url.includes("?") ? "&" : "?") + qs;
+  }
+
+  return url;
+}
+
+function buildBody(request: ApiRequest, variables: Record<string, string>): string | undefined {
+  if (request.body.type === "none") return undefined;
+  if (request.body.type === "json" || request.body.type === "xml" || request.body.type === "text" || request.body.type === "html") {
+    return substituteVariables(request.body.raw ?? "", variables);
+  }
+  if (request.body.type === "x-www-form-urlencoded" && request.body.formUrlEncoded) {
+    const params = new URLSearchParams();
+    for (const p of request.body.formUrlEncoded) {
+      if (p.enabled && p.key) {
+        params.append(p.key, substituteVariables(p.value, variables));
+      }
+    }
+    return params.toString();
+  }
+  return request.body.raw;
+}
+
+export async function sendRequest({
+  request,
+  proxyMode,
+  variables,
+  signal,
+}: SendRequestOptions): Promise<ApiResponse> {
+  const url = buildUrl(request, variables);
+  const headers = buildHeaders(request, variables);
+  const body = buildBody(request, variables);
+
+  const startTime = performance.now();
+  let fetchUrl: string;
+
+  if (proxyMode === "proxy") {
+    fetchUrl = `/api/proxy`;
+  } else {
+    fetchUrl = url;
+  }
+
+  const fetchOptions: RequestInit = {
+    method: request.method,
+    headers: proxyMode === "proxy" ? {} : headers,
+    signal,
+  };
+
+  if (proxyMode === "proxy") {
+    fetchOptions.headers = {
+      "Content-Type": "application/json",
+    };
+    fetchOptions.body = JSON.stringify({
+      method: request.method,
+      url,
+      headers,
+      body,
+    });
+  } else {
+    if (body) {
+      fetchOptions.body = body;
+    }
+  }
+
+  const response = await fetch(fetchUrl, fetchOptions);
+  const endTime = performance.now();
+
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    responseHeaders[key] = value;
+  });
+
+  const responseBody = await response.text();
+  const size = new Blob([responseBody]).size;
+
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+    body: responseBody,
+    time: endTime - startTime,
+    size,
+    timestamp: new Date().toISOString(),
+  };
+}
