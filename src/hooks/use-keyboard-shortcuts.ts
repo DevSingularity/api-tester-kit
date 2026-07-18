@@ -7,7 +7,7 @@ import { useEnvironmentStore } from "@/store/environment-store";
 import { useHistoryStore } from "@/store/history-store";
 
 export function useKeyboardShortcuts() {
-  const { getActiveRequest, setLoading, setResponse, proxyMode } =
+  const { getActiveRequest, setLoading, setResponse, proxyMode, setCancelController } =
     useRequestStore();
   const { addEntry } = useHistoryStore();
 
@@ -20,6 +20,7 @@ export function useKeyboardShortcuts() {
         if (!request || !request.url) return;
 
         const controller = new AbortController();
+        setCancelController(request.id, controller);
         setLoading(request.id, true);
 
         sendRequest({
@@ -58,5 +59,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [getActiveRequest, setLoading, setResponse, proxyMode, addEntry]);
+  }, [getActiveRequest, setLoading, setResponse, proxyMode, addEntry, setCancelController]);
 }

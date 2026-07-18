@@ -36,6 +36,7 @@ interface RequestStore {
   setResponse: (requestId: string, response: ApiResponse) => void;
   setLoading: (requestId: string, loading: boolean) => void;
   setProxyMode: (mode: ProxyMode) => void;
+  setCancelController: (requestId: string, controller: AbortController) => void;
   cancelRequest: (requestId: string) => void;
   getActiveRequest: () => ApiRequest | null;
   getActiveResponse: () => ApiResponse | null;
@@ -206,6 +207,11 @@ export const useRequestStore = create<RequestStore>()(
         })),
 
       setProxyMode: (mode) => set({ proxyMode: mode }),
+
+      setCancelController: (requestId, controller) =>
+        set((state) => ({
+          cancelControllers: { ...state.cancelControllers, [requestId]: controller },
+        })),
 
       cancelRequest: (requestId) => {
         const controller = get().cancelControllers[requestId];

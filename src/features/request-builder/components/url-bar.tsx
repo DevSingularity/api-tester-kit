@@ -7,7 +7,7 @@ import { sendRequest } from "@/lib/api-engine";
 import { MethodSelector } from "@/components/method-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Loader2, Square } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { useHistoryStore } from "@/store/history-store";
 
 export function UrlBar() {
@@ -20,6 +20,7 @@ export function UrlBar() {
     loading,
     proxyMode,
     cancelRequest,
+    setCancelController,
   } = useRequestStore();
   const { resolveVariables } = useEnvironmentStore();
   const { addEntry } = useHistoryStore();
@@ -32,6 +33,8 @@ export function UrlBar() {
   const handleSend = async () => {
     if (!request.url) return;
 
+    const controller = new AbortController();
+    setCancelController(request.id, controller);
     setLoading(request.id, true);
 
     try {
@@ -44,11 +47,13 @@ export function UrlBar() {
         request: resolvedRequest,
         proxyMode,
         variables: useEnvironmentStore.getState().getActiveVariables(),
+        signal: controller.signal,
       });
 
       setResponse(request.id, response);
       addEntry({ request, response });
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       const errorMessage =
         error instanceof Error ? error.message : "Request failed";
       setResponse(request.id, {
@@ -65,12 +70,6 @@ export function UrlBar() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      handleSend();
-    }
-  };
-
   return (
     <div className="flex items-center gap-0">
       <MethodSelector
@@ -80,7 +79,6 @@ export function UrlBar() {
       <Input
         value={request.url}
         onChange={(e) => updateUrl(request.id, e.target.value)}
-        onKeyDown={handleKeyDown}
         placeholder="Enter URL or paste cURL"
         className="h-9 rounded-none border-l-0 border-r-0 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
       />
@@ -99,12 +97,9 @@ export function UrlBar() {
           className="h-9 rounded-l-none rounded-r-lg px-3"
           onClick={handleSend}
           disabled={!request.url}
+          title="Send Request (Ctrl+Enter)"
         >
-          {isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Send className="size-4" />
-          )}
+          <Send className="size-4" />
           Send
         </Button>
       )}

@@ -19,12 +19,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Settings, Globe } from "lucide-react";
+import { Settings, Globe, FolderPlus } from "lucide-react";
 import { EnvQuickEdit } from "@/components/env-quick-edit";
 import { cn } from "@/lib/utils";
+import { useCollectionStore } from "@/store/collection-store";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
-  const { createTab, tabs } = useRequestStore();
+  const { createTab, tabs, getActiveRequest } = useRequestStore();
+  const { collections, addRequestToCollection } = useCollectionStore();
+  const request = getActiveRequest();
   useKeyboardShortcuts();
 
   useEffect(() => {
@@ -43,22 +52,58 @@ export default function Home() {
             <UrlBar />
           </div>
           <div className="flex items-center gap-1 ml-2 shrink-0">
-            <Popover>
-              <PopoverTrigger
-                className={cn(
-                  "inline-flex items-center justify-center rounded-md p-1.5",
-                  "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                  "disabled:pointer-events-none disabled:opacity-50",
-                  "cursor-pointer"
-                )}
-              >
-                <Globe className="size-4" />
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="end">
-                <EnvQuickEdit />
-              </PopoverContent>
-            </Popover>
+            {request && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-md p-1.5",
+                        "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                        "cursor-pointer"
+                      )}
+                    >
+                      <FolderPlus className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {collections.map((c) => (
+                        <DropdownMenuItem
+                          key={c.id}
+                          onClick={() => addRequestToCollection(c.id, request)}
+                        >
+                          {c.name}
+                        </DropdownMenuItem>
+                      ))}
+                      {collections.length === 0 && (
+                        <DropdownMenuItem disabled>No collections</DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>Add to Collection</TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger>
+                <Popover>
+                  <PopoverTrigger
+                    className={cn(
+                      "inline-flex items-center justify-center rounded-md p-1.5",
+                      "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                      "disabled:pointer-events-none disabled:opacity-50",
+                      "cursor-pointer"
+                    )}
+                  >
+                    <Globe className="size-4" />
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80" align="end">
+                    <EnvQuickEdit />
+                  </PopoverContent>
+                </Popover>
+              </TooltipTrigger>
+              <TooltipContent>Environments</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 className={cn(

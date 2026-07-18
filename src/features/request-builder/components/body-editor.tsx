@@ -30,10 +30,20 @@ interface FormDataField extends KeyValuePair {
 }
 
 export function BodyEditor() {
-  const { getActiveRequest, updateBody } = useRequestStore();
+  const { getActiveRequest, updateBody, updateHeaders } = useRequestStore();
   const request = getActiveRequest();
   const [formDataFields, setFormDataFields] = useState<FormDataField[]>([]);
   const [formUrlEncodedFields, setFormUrlEncodedFields] = useState<KeyValuePair[]>([]);
+
+  const setHeader = useCallback((key: string, value: string) => {
+    if (!request) return;
+    const existing = request.headers.find(h => h.key.toLowerCase() === key.toLowerCase());
+    if (existing) {
+        updateHeaders(request.id, request.headers.map(h => h.id === existing.id ? { ...h, value } : h));
+    } else {
+        updateHeaders(request.id, [...request.headers, { id: crypto.randomUUID(), key, value, enabled: true }]);
+    }
+  }, [request, updateHeaders]);
 
   const syncFormUrlEncoded = useCallback((fields: KeyValuePair[]) => {
     const serialized = fields
@@ -41,7 +51,8 @@ export function BodyEditor() {
       .map((f) => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value)}`)
       .join("&");
     updateBody(request!.id, "x-www-form-urlencoded", serialized);
-  }, [request, updateBody]);
+    setHeader("Content-Type", "application/x-www-form-urlencoded");
+  }, [request, updateBody, setHeader]);
 
   const syncFormData = useCallback((fields: FormDataField[]) => {
     const serialized = JSON.stringify(
@@ -52,7 +63,20 @@ export function BodyEditor() {
       }))
     );
     updateBody(request!.id, "form-data", serialized);
+    // Content-Type is usually multipart/form-data for form-data, 
+    // but the actual boundary is needed. Browser does it automatically 
+    // when using FormData API. For now, keep it simple.
   }, [request, updateBody]);
+
+  const onBodyTypeChange = (value: string | null) => {
+      if (!value) return;
+      const bodyType = value as BodyType;
+      updateBody(request!.id, bodyType);
+      if (bodyType === "json") setHeader("Content-Type", "application/json");
+      if (bodyType === "xml") setHeader("Content-Type", "application/xml");
+      if (bodyType === "text") setHeader("Content-Type", "text/plain");
+      if (bodyType === "html") setHeader("Content-Type", "text/html");
+  };
 
   if (!request) return null;
 
@@ -63,7 +87,7 @@ export function BodyEditor() {
       <div className="flex items-center gap-2">
         <Select
           value={bodyType}
-          onValueChange={(value) => updateBody(request.id, value as BodyType)}
+          onValueChange={onBodyTypeChange}
         >
           <SelectTrigger className="w-40 h-7 text-xs">
             <SelectValue />

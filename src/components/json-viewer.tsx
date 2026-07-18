@@ -35,6 +35,7 @@ function JsonNode({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
   const type = getValueType(value);
+  const isContainer = type === "object" || type === "array";
 
   const entries = type === "object" ? Object.entries(value as Record<string, unknown>) : [];
   const items = type === "array" ? (value as unknown[]) : [];
@@ -50,28 +51,46 @@ function JsonNode({
   return (
     <div style={{ paddingLeft: depth * 16 }}>
       <div className="flex items-center gap-1 group">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-        </button>
+        {isContainer ? (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+          </button>
+        ) : (
+          <div className="size-3" />
+        )}
         {keyName !== null && (
           <>
             <span className="text-blue-400 font-mono text-xs">&quot;{keyName}&quot;</span>
             <span className="text-muted-foreground text-xs">: </span>
           </>
         )}
-        <span className="text-muted-foreground font-mono text-xs">
-          {openBrace}
-          {!expanded && (
-            <>
-              <span className="text-muted-foreground"> ... </span>
-              <span className="text-muted-foreground">{closeBrace}</span>
-              {!isLast && <span>,</span>}
-            </>
-          )}
-        </span>
+        {isContainer ? (
+          <span className="text-muted-foreground font-mono text-xs">
+            {openBrace}
+            {!expanded && (
+              <>
+                <span className="text-muted-foreground"> ... </span>
+                <span className="text-muted-foreground">{closeBrace}</span>
+                {!isLast && <span>,</span>}
+              </>
+            )}
+          </span>
+        ) : (
+          <span
+            className={cn("font-mono text-xs", {
+              "text-green-400": type === "string",
+              "text-amber-400": type === "number",
+              "text-purple-400": type === "boolean",
+              "text-gray-400": type === "null",
+            })}
+          >
+            {type === "string" ? `"${value}"` : String(value)}
+            {!isLast && <span className="text-muted-foreground text-xs">,</span>}
+          </span>
+        )}
         <button
           onClick={handleCopyPath}
           className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
@@ -79,7 +98,7 @@ function JsonNode({
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>
       </div>
-      {expanded && (
+      {isContainer && expanded && (
         <>
           {type === "array" &&
             items.map((item, i) => (

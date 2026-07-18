@@ -21,6 +21,11 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { DiffDialog } from "@/components/diff-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const navItems = [
   { icon: Zap, label: "Request", href: "/" },
@@ -69,15 +74,20 @@ export function Sidebar() {
         {sidebarOpen && (
           <>
             <div className="p-2 space-y-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-2 text-sidebar-foreground"
-                size="sm"
-                onClick={() => createTab()}
-              >
-                <Plus className="size-4" />
-                New Request
-              </Button>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2 text-sidebar-foreground"
+                    size="sm"
+                    onClick={() => createTab()}
+                  >
+                    <Plus className="size-4" />
+                    New Request
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">New Request (Ctrl+N)</TooltipContent>
+              </Tooltip>
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-2 text-sidebar-foreground"

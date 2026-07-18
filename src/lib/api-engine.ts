@@ -102,54 +102,94 @@ export async function sendRequest({
   const body = buildBody(request, variables);
 
   const startTime = performance.now();
-  let fetchUrl: string;
 
-  if (proxyMode === "proxy") {
-    fetchUrl = `/api/proxy`;
-  } else {
-    fetchUrl = url;
+  async function doFetch(fetchUrl: string, options: RequestInit): Promise<ApiResponse> {
+    const response = await fetch(fetchUrl, options);
+    const endTime = performance.now();
+
+    if (proxyMode === "proxy" || proxyMode === "auto") {
+      const contentType = response.headers.get("content-type") ?? "";
+      const isJson = contentType.includes("application/json");
+
+      if (isJson) {
+        const proxyResponse = await response.json();
+        return {
+          status: proxyResponse.status ?? response.status,
+          statusText: proxyResponse.statusText ?? response.statusText,
+          headers: proxyResponse.headers ?? {},
+          body: proxyResponse.body ?? "",
+          time: proxyResponse.time ?? endTime - startTime,
+          size: proxyResponse.size ?? 0,
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const responseText = await response.text();
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      return {
+        status: parseInt(response.headers.get("X-Original-Status") ?? String(response.status), 10),
+        statusText: response.statusText,
+        headers: responseHeaders,
+        body: responseText,
+        time: parseFloat(response.headers.get("X-Response-Time") ?? String(endTime - startTime)),
+        size: new Blob([responseText]).size,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+
+    const responseBody = await response.text();
+    const size = new Blob([responseBody]).size;
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      body: responseBody,
+      time: endTime - startTime,
+      size,
+      timestamp: new Date().toISOString(),
+    };
   }
 
-  const fetchOptions: RequestInit = {
-    method: request.method,
-    headers: proxyMode === "proxy" ? {} : headers,
-    signal,
-  };
-
   if (proxyMode === "proxy") {
-    fetchOptions.headers = {
-      "Content-Type": "application/json",
-    };
-    fetchOptions.body = JSON.stringify({
-      method: request.method,
-      url,
-      headers,
-      body,
+    return doFetch(`/api/proxy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({ method: request.method, url, headers, body }),
     });
-  } else {
-    if (body) {
-      fetchOptions.body = body;
+  }
+
+  if (proxyMode === "auto") {
+    try {
+      return await doFetch(url, {
+        method: request.method,
+        headers,
+        signal,
+        body: body && request.method !== "GET" && request.method !== "HEAD" ? body : undefined,
+      });
+    } catch {
+      return doFetch(`/api/proxy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal,
+        body: JSON.stringify({ method: request.method, url, headers, body }),
+      });
     }
   }
 
-  const response = await fetch(fetchUrl, fetchOptions);
-  const endTime = performance.now();
-
-  const responseHeaders: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    responseHeaders[key] = value;
+  return doFetch(url, {
+    method: request.method,
+    headers,
+    signal,
+    body: body && request.method !== "GET" && request.method !== "HEAD" ? body : undefined,
   });
-
-  const responseBody = await response.text();
-  const size = new Blob([responseBody]).size;
-
-  return {
-    status: response.status,
-    statusText: response.statusText,
-    headers: responseHeaders,
-    body: responseBody,
-    time: endTime - startTime,
-    size,
-    timestamp: new Date().toISOString(),
-  };
 }

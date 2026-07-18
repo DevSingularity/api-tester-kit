@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Collection } from "@/types";
+import type { Collection, ApiRequest } from "@/types";
 import { generateId } from "@/utils";
 import { indexedDBStorage } from "@/lib/indexeddb-storage";
 
@@ -10,6 +10,7 @@ interface CollectionStore {
   createCollection: (name: string) => string;
   deleteCollection: (id: string) => void;
   renameCollection: (id: string, name: string) => void;
+  addRequestToCollection: (collectionId: string, request: ApiRequest) => void;
   getCollections: () => Collection[];
 }
 
@@ -46,6 +47,19 @@ export const useCollectionStore = create<CollectionStore>()(
           collections: state.collections.map((c) =>
             c.id === id
               ? { ...c, name, updatedAt: new Date().toISOString() }
+              : c
+          ),
+        })),
+
+      addRequestToCollection: (collectionId, request) =>
+        set((state) => ({
+          collections: state.collections.map((c) =>
+            c.id === collectionId
+              ? {
+                  ...c,
+                  requests: [...c.requests, { ...request, collectionId }],
+                  updatedAt: new Date().toISOString(),
+                }
               : c
           ),
         })),
