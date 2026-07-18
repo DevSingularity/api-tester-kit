@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useRef } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { CodeGenerator } from "@/components/code-generator-panel";
+import { ResponseSearch } from "@/components/response-search";
 
 export function ResponseViewer() {
   const { getActiveResponse, loading, getActiveRequest } = useRequestStore();
@@ -70,6 +71,7 @@ export function ResponseViewer() {
           {formatBytes(response.size)}
         </span>
         <div className="flex-1" />
+        <ResponseSearch body={response.body} />
         <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
           <Copy className="size-3" />
           {copied ? "Copied!" : ""}

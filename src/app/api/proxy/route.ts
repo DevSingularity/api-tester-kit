@@ -35,6 +35,54 @@ export async function POST(request: NextRequest) {
     const response = await fetch(targetUrl, fetchOptions);
     const endTime = performance.now();
 
+    const contentType = response.headers.get("content-type") ?? "";
+    const isStreamable =
+      contentType.includes("text/event-stream") ||
+      contentType.includes("application/octet-stream") ||
+      contentType.includes("video/") ||
+      contentType.includes("audio/");
+
+    if (isStreamable) {
+      const reader = response.body?.getReader();
+      if (!reader) {
+        return NextResponse.json({ error: "No response body" }, { status: 500 });
+      }
+
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const text = decoder.decode(value, { stream: true });
+              controller.enqueue(encoder.encode(text));
+            }
+          } catch (error) {
+            controller.error(error);
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain",
+          "X-Original-Status": String(response.status),
+          "X-Response-Time": String(endTime - startTime),
+        },
+      });
+    }
+
     const responseText = await response.text();
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
