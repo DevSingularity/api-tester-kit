@@ -20,8 +20,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Settings, Globe } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { EnvQuickEdit } from "@/components/env-quick-edit";
+import { cn } from "@/lib/utils";
 
 export default function Home() {
   const { createTab, tabs } = useRequestStore();
@@ -44,10 +44,16 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-1 ml-2 shrink-0">
             <Popover>
-              <PopoverTrigger>
-                <Button variant="ghost" size="icon-sm">
-                  <Globe className="size-4" />
-                </Button>
+              <PopoverTrigger
+                className={cn(
+                  "inline-flex items-center justify-center rounded-md p-1.5",
+                  "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  "disabled:pointer-events-none disabled:opacity-50",
+                  "cursor-pointer"
+                )}
+              >
+                <Globe className="size-4" />
               </PopoverTrigger>
               <PopoverContent className="w-80" align="end">
                 <EnvQuickEdit />
@@ -55,9 +61,13 @@ export default function Home() {
             </Popover>
             <Tooltip>
               <TooltipTrigger
-                render={
-                  <Button variant="ghost" size="icon-sm" />
-                }
+                className={cn(
+                  "inline-flex items-center justify-center rounded-md p-1.5",
+                  "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  "disabled:pointer-events-none disabled:opacity-50",
+                  "cursor-pointer"
+                )}
               >
                 <Settings className="size-4" />
               </TooltipTrigger>
