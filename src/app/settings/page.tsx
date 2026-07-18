@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Moon, Sun, Monitor } from "lucide-react";
+import { MockServerGenerator } from "@/components/mock-server-generator";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -99,6 +100,12 @@ export default function SettingsPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold">Mock Server</h2>
+            <Separator />
+            <MockServerGenerator />
           </div>
 
           <div className="space-y-3">
