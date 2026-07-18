@@ -1,6 +1,8 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { Collection } from "@/types";
 import { generateId } from "@/utils";
+import { indexedDBStorage } from "@/lib/indexeddb-storage";
 
 interface CollectionStore {
   collections: Collection[];
@@ -11,40 +13,48 @@ interface CollectionStore {
   getCollections: () => Collection[];
 }
 
-export const useCollectionStore = create<CollectionStore>((set, get) => ({
-  collections: [],
+export const useCollectionStore = create<CollectionStore>()(
+  persist(
+    (set, get) => ({
+      collections: [],
 
-  createCollection: (name) => {
-    const collection: Collection = {
-      id: generateId(),
-      name,
-      requests: [],
-      folders: [],
-      environments: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      createCollection: (name) => {
+        const collection: Collection = {
+          id: generateId(),
+          name,
+          requests: [],
+          folders: [],
+          environments: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-    set((state) => ({
-      collections: [...state.collections, collection],
-    }));
+        set((state) => ({
+          collections: [...state.collections, collection],
+        }));
 
-    return collection.id;
-  },
+        return collection.id;
+      },
 
-  deleteCollection: (id) =>
-    set((state) => ({
-      collections: state.collections.filter((c) => c.id !== id),
-    })),
+      deleteCollection: (id) =>
+        set((state) => ({
+          collections: state.collections.filter((c) => c.id !== id),
+        })),
 
-  renameCollection: (id, name) =>
-    set((state) => ({
-      collections: state.collections.map((c) =>
-        c.id === id
-          ? { ...c, name, updatedAt: new Date().toISOString() }
-          : c
-      ),
-    })),
+      renameCollection: (id, name) =>
+        set((state) => ({
+          collections: state.collections.map((c) =>
+            c.id === id
+              ? { ...c, name, updatedAt: new Date().toISOString() }
+              : c
+          ),
+        })),
 
-  getCollections: () => get().collections,
-}));
+      getCollections: () => get().collections,
+    }),
+    {
+      name: "collection-store",
+      storage: indexedDBStorage as unknown as Parameters<typeof persist>[1]["storage"],
+    }
+  )
+);

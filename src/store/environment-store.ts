@@ -1,6 +1,8 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { Environment } from "@/types";
 import { generateId } from "@/utils";
+import { indexedDBStorage } from "@/lib/indexeddb-storage";
 
 interface EnvironmentStore {
   environments: Environment[];
@@ -18,85 +20,93 @@ interface EnvironmentStore {
   resolveVariables: (template: string) => string;
 }
 
-export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
-  environments: [],
-  activeEnvironmentId: null,
-  globalVariables: {},
+export const useEnvironmentStore = create<EnvironmentStore>()(
+  persist(
+    (set, get) => ({
+      environments: [],
+      activeEnvironmentId: null,
+      globalVariables: {},
 
-  createEnvironment: (name) => {
-    const env: Environment = {
-      id: generateId(),
-      name,
-      variables: {},
-      isSecret: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      createEnvironment: (name) => {
+        const env: Environment = {
+          id: generateId(),
+          name,
+          variables: {},
+          isSecret: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-    set((state) => ({
-      environments: [...state.environments, env],
-    }));
+        set((state) => ({
+          environments: [...state.environments, env],
+        }));
 
-    return env.id;
-  },
+        return env.id;
+      },
 
-  deleteEnvironment: (id) =>
-    set((state) => ({
-      environments: state.environments.filter((e) => e.id !== id),
-      activeEnvironmentId:
-        state.activeEnvironmentId === id ? null : state.activeEnvironmentId,
-    })),
+      deleteEnvironment: (id) =>
+        set((state) => ({
+          environments: state.environments.filter((e) => e.id !== id),
+          activeEnvironmentId:
+            state.activeEnvironmentId === id ? null : state.activeEnvironmentId,
+        })),
 
-  updateEnvironment: (id, updates) =>
-    set((state) => ({
-      environments: state.environments.map((e) =>
-        e.id === id
-          ? { ...e, ...updates, updatedAt: new Date().toISOString() }
-          : e
-      ),
-    })),
+      updateEnvironment: (id, updates) =>
+        set((state) => ({
+          environments: state.environments.map((e) =>
+            e.id === id
+              ? { ...e, ...updates, updatedAt: new Date().toISOString() }
+              : e
+          ),
+        })),
 
-  setActiveEnvironment: (id) => set({ activeEnvironmentId: id }),
+      setActiveEnvironment: (id) => set({ activeEnvironmentId: id }),
 
-  setVariable: (envId, key, value) =>
-    set((state) => ({
-      environments: state.environments.map((e) =>
-        e.id === envId
-          ? {
-              ...e,
-              variables: { ...e.variables, [key]: value },
-              updatedAt: new Date().toISOString(),
-            }
-          : e
-      ),
-    })),
+      setVariable: (envId, key, value) =>
+        set((state) => ({
+          environments: state.environments.map((e) =>
+            e.id === envId
+              ? {
+                  ...e,
+                  variables: { ...e.variables, [key]: value },
+                  updatedAt: new Date().toISOString(),
+                }
+              : e
+          ),
+        })),
 
-  deleteVariable: (envId, key) =>
-    set((state) => ({
-      environments: state.environments.map((e) => {
-        if (e.id !== envId) return e;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { [key]: _removed, ...rest } = e.variables;
-        return { ...e, variables: rest, updatedAt: new Date().toISOString() };
-      }),
-    })),
+      deleteVariable: (envId, key) =>
+        set((state) => ({
+          environments: state.environments.map((e) => {
+            if (e.id !== envId) return e;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [key]: _removed, ...rest } = e.variables;
+            return { ...e, variables: rest, updatedAt: new Date().toISOString() };
+          }),
+        })),
 
-  setGlobalVariable: (key, value) =>
-    set((state) => ({
-      globalVariables: { ...state.globalVariables, [key]: value },
-    })),
+      setGlobalVariable: (key, value) =>
+        set((state) => ({
+          globalVariables: { ...state.globalVariables, [key]: value },
+        })),
 
-  getActiveVariables: () => {
-    const state = get();
-    if (!state.activeEnvironmentId) return state.globalVariables;
-    const env = state.environments.find(
-      (e) => e.id === state.activeEnvironmentId
-    );
-    return { ...state.globalVariables, ...(env?.variables ?? {}) };
-  },
+      getActiveVariables: () => {
+        const state = get();
+        if (!state.activeEnvironmentId) return state.globalVariables;
+        const env = state.environments.find(
+          (e) => e.id === state.activeEnvironmentId
+        );
+        return { ...state.globalVariables, ...(env?.variables ?? {}) };
+      },
 
-  resolveVariables: (template) => {
-    const vars = get().getActiveVariables();
-    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
-  },
-}));
+      resolveVariables: (template) => {
+        const vars = get().getActiveVariables();
+        return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+      },
+    }),
+    {
+      name: "environment-store",
+      storage: indexedDBStorage as unknown as Parameters<typeof persist>[1]["storage"],
+    }
+  )
+);
