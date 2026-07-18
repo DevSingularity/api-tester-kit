@@ -14,11 +14,13 @@ import {
   Globe,
   Braces,
   Webhook,
+  GitCompareArrows,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { DiffDialog } from "@/components/diff-dialog";
 
 const navItems = [
   { icon: Zap, label: "Request", href: "/" },
@@ -27,6 +29,7 @@ const navItems = [
   { icon: History, label: "History", href: "/history" },
   { icon: Braces, label: "GraphQL", href: "/graphql" },
   { icon: Webhook, label: "WebSocket", href: "/websocket" },
+  { icon: GitCompareArrows, label: "gRPC", href: "/grpc" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
@@ -83,6 +86,7 @@ export function Sidebar() {
                 <Search className="size-4" />
                 Search
               </Button>
+              <DiffDialog />
             </div>
 
             <Separator />

@@ -14,8 +14,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Settings } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Settings, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EnvQuickEdit } from "@/components/env-quick-edit";
 
 export default function Home() {
   const { createTab, tabs } = useRequestStore();
@@ -37,6 +43,16 @@ export default function Home() {
             <UrlBar />
           </div>
           <div className="flex items-center gap-1 ml-2 shrink-0">
+            <Popover>
+              <PopoverTrigger>
+                <Button variant="ghost" size="icon-sm">
+                  <Globe className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="end">
+                <EnvQuickEdit />
+              </PopoverContent>
+            </Popover>
             <Tooltip>
               <TooltipTrigger
                 render={
