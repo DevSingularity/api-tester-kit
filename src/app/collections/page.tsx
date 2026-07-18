@@ -6,7 +6,8 @@ import { Sidebar } from "@/components/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, FolderOpen, Trash2, Edit2 } from "lucide-react";
+import { ImportExportDialog } from "@/components/import-export-dialog";
+import { Plus, FolderOpen, Trash2, Edit2, Upload, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,8 @@ export default function CollectionsPage() {
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [importExportOpen, setImportExportOpen] = useState(false);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
 
   const handleCreate = () => {
     if (newName.trim()) {
@@ -39,16 +42,32 @@ export default function CollectionsPage() {
     }
   };
 
+  const activeCollection = collections.find((c) => c.id === selectedCollection);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center justify-between h-12 px-4 border-b border-border shrink-0">
           <h1 className="text-sm font-semibold">Collections</h1>
-          <Button size="sm" onClick={() => setShowNewDialog(true)} className="gap-1">
-            <Plus className="size-3.5" />
-            New Collection
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedCollection(null);
+                setImportExportOpen(true);
+              }}
+              className="gap-1"
+            >
+              <Upload className="size-3.5" />
+              Import
+            </Button>
+            <Button size="sm" onClick={() => setShowNewDialog(true)} className="gap-1">
+              <Plus className="size-3.5" />
+              New
+            </Button>
+          </div>
         </header>
 
         <ScrollArea className="flex-1 p-4">
@@ -79,8 +98,21 @@ export default function CollectionsPage() {
                     ) : (
                       <span className="text-sm font-medium">{collection.name}</span>
                     )}
+                    <span className="text-xs text-muted-foreground">
+                      {collection.requests.length} requests
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => {
+                        setSelectedCollection(collection.id);
+                        setImportExportOpen(true);
+                      }}
+                    >
+                      <Download className="size-3" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -125,6 +157,12 @@ export default function CollectionsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <ImportExportDialog
+          open={importExportOpen}
+          onOpenChange={setImportExportOpen}
+          collection={activeCollection}
+        />
       </div>
     </div>
   );

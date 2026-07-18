@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef } from "react";
+import { JsonViewer } from "@/components/json-viewer";
 
 export function ResponseViewer() {
   const { getActiveResponse, loading, getActiveRequest } = useRequestStore();
@@ -52,13 +53,6 @@ export function ResponseViewer() {
     URL.revokeObjectURL(url);
   };
 
-  let formattedBody = response.body;
-  try {
-    formattedBody = JSON.stringify(JSON.parse(response.body), null, 2);
-  } catch {
-    // Not JSON, keep as-is
-  }
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
@@ -103,9 +97,7 @@ export function ResponseViewer() {
         </div>
 
         <TabsContent value="body" className="flex-1 m-0 overflow-auto">
-          <pre className="p-3 font-mono text-xs text-foreground whitespace-pre-wrap break-words">
-            {formattedBody}
-          </pre>
+          <JsonViewer data={response.body} className="h-full" />
         </TabsContent>
 
         <TabsContent value="headers" className="flex-1 m-0 overflow-auto">
