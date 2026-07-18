@@ -75,7 +75,8 @@ export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
     set((state) => ({
       environments: state.environments.map((e) => {
         if (e.id !== envId) return e;
-        const { [key]: _, ...rest } = e.variables;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [key]: _removed, ...rest } = e.variables;
         return { ...e, variables: rest, updatedAt: new Date().toISOString() };
       }),
     })),

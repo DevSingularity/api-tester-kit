@@ -7,6 +7,7 @@ import { RequestTabs } from "@/features/request-builder/components/request-tabs"
 import { RequestPanel } from "@/features/request-builder/components/request-panel";
 import { ResponseViewer } from "@/features/response-viewer/components/response-viewer";
 import { useRequestStore } from "@/store/request-store";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -18,12 +19,13 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const { createTab, tabs } = useRequestStore();
+  useKeyboardShortcuts();
 
   useEffect(() => {
     if (tabs.length === 0) {
       createTab();
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

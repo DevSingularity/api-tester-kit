@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { HttpMethod } from "@/types";
 import { useRequestStore } from "@/store/request-store";
 import { useEnvironmentStore } from "@/store/environment-store";
@@ -25,7 +24,6 @@ export function UrlBar() {
   const { resolveVariables } = useEnvironmentStore();
   const { addEntry } = useHistoryStore();
   const request = getActiveRequest();
-  const [localUrl, setLocalUrl] = useState("");
 
   if (!request) return null;
 
@@ -34,7 +32,6 @@ export function UrlBar() {
   const handleSend = async () => {
     if (!request.url) return;
 
-    const abortController = new AbortController();
     setLoading(request.id, true);
 
     try {
@@ -47,15 +44,11 @@ export function UrlBar() {
         request: resolvedRequest,
         proxyMode,
         variables: useEnvironmentStore.getState().getActiveVariables(),
-        signal: abortController.signal,
       });
 
       setResponse(request.id, response);
       addEntry({ request, response });
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
       const errorMessage =
         error instanceof Error ? error.message : "Request failed";
       setResponse(request.id, {
@@ -86,10 +79,7 @@ export function UrlBar() {
       />
       <Input
         value={request.url}
-        onChange={(e) => {
-          setLocalUrl(e.target.value);
-          updateUrl(request.id, e.target.value);
-        }}
+        onChange={(e) => updateUrl(request.id, e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Enter URL or paste cURL"
         className="h-9 rounded-none border-l-0 border-r-0 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"

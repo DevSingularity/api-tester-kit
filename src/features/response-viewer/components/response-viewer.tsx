@@ -3,11 +3,10 @@
 import { useRequestStore } from "@/store/request-store";
 import { getStatusColor, formatBytes, formatDuration } from "@/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export function ResponseViewer() {
   const { getActiveResponse, loading, getActiveRequest } = useRequestStore();
@@ -15,6 +14,7 @@ export function ResponseViewer() {
   const request = getActiveRequest();
   const isLoading = request ? loading[request.id] : false;
   const [copied, setCopied] = useState(false);
+  const downloadCounter = useRef(0);
 
   if (isLoading) {
     return (
@@ -42,11 +42,12 @@ export function ResponseViewer() {
   };
 
   const handleDownload = () => {
+    downloadCounter.current += 1;
     const blob = new Blob([response.body], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `response-${Date.now()}.txt`;
+    a.download = `response-${downloadCounter.current}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
