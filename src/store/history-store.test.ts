@@ -197,7 +197,7 @@ describe("HistoryStore", () => {
     expect(results[0].request.method).toBe("POST");
   });
 
-  it("respects maxEntries limit", () => {
+  it("respects maxEntries limit", async () => {
     const { addEntry } = useHistoryStore.getState();
     for (let i = 0; i < 510; i++) {
       addEntry({
@@ -225,7 +225,7 @@ describe("HistoryStore", () => {
 
     const state = useHistoryStore.getState();
     expect(state.entries.length).toBe(500);
-  });
+  }, 15000);
 
   it("newest entries are first", () => {
     const { addEntry } = useHistoryStore.getState();

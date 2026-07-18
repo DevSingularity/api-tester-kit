@@ -25,6 +25,10 @@ A modern, production-grade API testing platform built with Next.js 16, React 19,
 | [WebSocket](./16-WEBSOCKET.md) | WebSocket client features |
 | [gRPC](./17-GRPC.md) | gRPC client features |
 | [Testing](./18-TESTING.md) | Vitest testing setup and test structure |
+| [Request Diff](./19-REQUEST-DIFF.md) | Request comparison feature |
+| [Mock Server](./20-MOCK-SERVER.md) | Mock server code generation |
+| [Environment Quick-Edit](./21-ENV-QUICK-EDIT.md) | Quick environment variable editing |
+| [Docker Deployment](./22-DOCKER-DEPLOYMENT.md) | Docker and VPS deployment guide |
 
 ## Tech Stack
 
@@ -43,6 +47,8 @@ A modern, production-grade API testing platform built with Next.js 16, React 19,
 | Animations | Framer Motion | 12.42.2 |
 | Persistence | idb-keyval | 6.3.0 |
 | Package Manager | pnpm | 11.7.0 |
+| Testing | Vitest + Jest | 4.1.10 + 29.7.0 |
+| Container | Docker | 20.10+ |
 
 ## Routes
 
@@ -71,6 +77,15 @@ pnpm build && pnpm start
 # Lint
 pnpm lint
 
-# Test
+# Test (Vitest)
 pnpm test:run
+
+# Test (Jest)
+pnpm test:jest
+
+# Test (All)
+pnpm test:all
+
+# Docker
+docker compose up -d
 ```

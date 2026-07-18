@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: "standalone",
   allowedDevOrigins: ["app.local.singularitydev.xyz", "http://localhost:3000", "http://localhost:3001"],
 };
 

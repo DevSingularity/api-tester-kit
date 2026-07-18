@@ -6,10 +6,19 @@
 api-tester-kit/
 ├── .git/                          # Git repository
 ├── .gitignore                     # Git ignore rules
+├── .github/                       # GitHub configuration
+│   └── workflows/
+│       ├── ci.yml                 # CI pipeline (lint, test, build)
+│       └── cd.yml                 # CD pipeline (Docker, deploy)
+├── .dockerignore                  # Docker ignore rules
+├── .env.example                   # Environment variables template
 ├── AGENTS.md                      # AI agent instructions
 ├── README.md                      # Project readme
+├── Dockerfile                     # Docker image definition
+├── docker-compose.yml             # Docker Compose services
 ├── components.json                # shadcn/ui configuration
 ├── eslint.config.mjs              # ESLint configuration
+├── jest.config.js                 # Jest configuration
 ├── next.config.ts                 # Next.js configuration
 ├── next-env.d.ts                  # Next.js TypeScript declarations
 ├── package.json                   # Dependencies and scripts
@@ -17,6 +26,11 @@ api-tester-kit/
 ├── pnpm-workspace.yaml            # pnpm workspace config
 ├── postcss.config.mjs             # PostCSS configuration
 ├── tsconfig.json                  # TypeScript configuration
+├── vitest.config.ts               # Vitest configuration
+│
+├── nginx/                         # Nginx configuration
+│   ├── default.conf               # Nginx server blocks
+│   └── ssl/                       # SSL certificates directory
 │
 ├── docs/                          # Documentation
 │   ├── README.md                  # Documentation index
@@ -37,7 +51,12 @@ api-tester-kit/
 │   ├── 14-FOLDER-STRUCTURE.md     # This file
 │   ├── 15-GRAPHQL.md              # GraphQL playground
 │   ├── 16-WEBSOCKET.md            # WebSocket client
-│   └── 17-GRPC.md                 # gRPC client
+│   ├── 17-GRPC.md                 # gRPC client
+│   ├── 18-TESTING.md              # Testing setup
+│   ├── 19-REQUEST-DIFF.md         # Request comparison
+│   ├── 20-MOCK-SERVER.md          # Mock server generation
+│   ├── 21-ENV-QUICK-EDIT.md       # Environment quick-edit
+│   └── 22-DOCKER-DEPLOYMENT.md    # Docker deployment guide
 │
 ├── public/                        # Static assets
 │   ├── favicon.ico                # Favicon
@@ -102,10 +121,14 @@ api-tester-kit/
     │   │
     │   ├── code-generator-panel.tsx   # Code generation UI
     │   ├── command-palette.tsx        # Command palette (Ctrl+K)
+    │   ├── diff-dialog.tsx            # Request diff dialog
+    │   ├── env-quick-edit.tsx         # Environment quick-edit popover
     │   ├── import-export-dialog.tsx   # Import/export dialog
     │   ├── json-viewer.tsx            # Interactive JSON tree
     │   ├── method-selector.tsx        # HTTP method dropdown
+    │   ├── mock-server-generator.tsx  # Mock server generator UI
     │   ├── query-provider.tsx         # TanStack Query provider
+    │   ├── request-diff.tsx           # Request comparison component
     │   ├── response-search.tsx        # Response body search
     │   ├── sidebar.tsx                # Main sidebar
     │   ├── theme-provider.tsx         # Theme management
@@ -141,6 +164,7 @@ api-tester-kit/
     │   ├── code-generator.ts      # Multi-language code gen
     │   ├── import-export.ts       # Format converters
     │   ├── indexeddb-storage.ts   # Zustand IndexedDB adapter
+    │   ├── mock-server-generator.ts # Mock server code generation
     │   ├── script-runner.ts       # Script execution sandbox
     │   ├── storage.ts             # IndexedDB persistence
     │   └── utils.ts               # shadcn/ui cn() utility
@@ -155,24 +179,35 @@ api-tester-kit/
     ├── types/                     # TypeScript types
     │   └── index.ts               # All type definitions
     │
+    ├── test/                      # Test configuration
+    │   ├── setup.ts               # Vitest setup (jsdom, mocks)
+    │   └── jest-setup.ts          # Jest setup (jsdom, mocks)
+    │
     └── utils/                     # Utility functions
-        └── index.ts               # Constants, formatters, helpers
+        ├── index.ts               # Constants, formatters, helpers
+        ├── utils.test.ts          # Vitest unit tests
+        └── jest.jest.test.ts      # Jest integration tests
 ```
 
 ## File Count Summary
 
 | Directory | Files | Purpose |
 |---|---|---|
+| `.github/workflows/` | 2 | CI/CD pipelines |
+| `nginx/` | 1 | Nginx configuration |
+| `docs/` | 22 | Documentation |
+| Root | 12 | Config files (Dockerfile, docker-compose, etc.) |
 | `src/app/` | 11 | Page routes + API |
-| `src/components/` | 16 | Shared UI components |
+| `src/components/` | 19 | Shared UI components |
 | `src/components/ui/` | 15 | shadcn/ui primitives |
 | `src/features/` | 9 | Feature-specific components |
 | `src/hooks/` | 1 | Custom React hooks |
-| `src/lib/` | 8 | Core libraries |
+| `src/lib/` | 9 | Core libraries |
 | `src/store/` | 5 | Zustand stores |
+| `src/test/` | 2 | Test setup files |
 | `src/types/` | 1 | Type definitions |
-| `src/utils/` | 1 | Utility functions |
-| `docs/` | 18 | Documentation |
+| `src/utils/` | 3 | Utility functions + tests |
+| **Total** | **~110** | |
 | Root | 10 | Config files |
 | **Total** | **~95** | |
 

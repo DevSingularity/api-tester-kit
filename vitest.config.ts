@@ -15,6 +15,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     css: true,
     include: ["src/**/*.test.{ts,tsx}"],
+    exclude: ["src/**/*.jest.test.ts", "src/**/*.jest.test.tsx"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
