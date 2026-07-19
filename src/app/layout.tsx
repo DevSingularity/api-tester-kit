@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/components/query-provider";
 import { CommandPalette } from "@/components/command-palette";
+import { Toaster } from "@/components/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
           <QueryProvider>
             <TooltipProvider delay={200}>
               <CommandPalette />
+              <Toaster />
               {children}
             </TooltipProvider>
           </QueryProvider>

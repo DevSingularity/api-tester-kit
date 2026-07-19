@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Square } from "lucide-react";
 import { useHistoryStore } from "@/store/history-store";
+import { useToastStore } from "@/store/toast-store";
 
 export function UrlBar() {
   const {
@@ -25,6 +26,7 @@ export function UrlBar() {
   } = useRequestStore();
   const { resolveVariables } = useEnvironmentStore();
   const { addEntry } = useHistoryStore();
+  const { addToast } = useToastStore();
   const request = getActiveRequest();
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -86,6 +88,7 @@ export function UrlBar() {
 
       setResponse(request.id, response);
       addEntry({ request, response });
+      addToast(`Request completed: ${response.status} ${response.statusText}`, response.status >= 400 ? "warning" : "success");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       const errorMessage =
@@ -99,6 +102,7 @@ export function UrlBar() {
         size: 0,
         timestamp: new Date().toISOString(),
       });
+      addToast(`Request failed: ${errorMessage}`, "error");
     } finally {
       setLoading(request.id, false);
     }
@@ -111,6 +115,7 @@ export function UrlBar() {
         onChange={(method: HttpMethod) => updateMethod(request.id, method)}
       />
       <Input
+        ref={(el) => { if (el && !request.url) setTimeout(() => el.focus(), 50); }}
         value={request.url}
         onChange={(e) => updateUrl(request.id, e.target.value)}
         onPaste={handlePaste}

@@ -7,11 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { getStatusColor, formatDuration, formatBytes } from "@/utils";
 import { Input } from "@/components/ui/input";
 import { useState, useMemo } from "react";
-import { Search, Clock, Trash2 } from "lucide-react";
+import { Search, Trash2, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
+import { useConfirmDialog } from "@/components/confirm-dialog";
+import { useToastStore } from "@/store/toast-store";
 
 export default function HistoryPage() {
   const { entries, clearHistory, deleteEntry } = useHistoryStore();
+  const { addToast } = useToastStore();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -33,7 +38,19 @@ export default function HistoryPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={clearHistory}
+            onClick={() => {
+              if (entries.length === 0) return;
+              confirm({
+                title: "Clear History",
+                description: `Are you sure you want to clear all ${entries.length} history entries?`,
+                confirmLabel: "Clear All",
+                variant: "destructive",
+                onConfirm: () => {
+                  clearHistory();
+                  addToast("History cleared", "success");
+                },
+              });
+            }}
             className="gap-1 text-destructive"
           >
             <Trash2 className="size-3.5" />
@@ -55,14 +72,11 @@ export default function HistoryPage() {
 
         <ScrollArea className="flex-1">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-              <Clock className="size-10 mb-3 opacity-50" />
-              <p className="text-sm">
-                {entries.length === 0
-                  ? "No history yet"
-                  : "No results found"}
-              </p>
-            </div>
+            <EmptyState
+              icon={entries.length === 0 ? History : Search}
+              title={entries.length === 0 ? "No history yet" : "No results found"}
+              description={entries.length === 0 ? "Send a request to see it here" : "Try a different search term"}
+            />
           ) : (
             <div className="divide-y divide-border">
               {filtered.map((entry) => (
@@ -104,6 +118,7 @@ export default function HistoryPage() {
             </div>
           )}
         </ScrollArea>
+        {confirmDialog}
       </div>
     </div>
   );

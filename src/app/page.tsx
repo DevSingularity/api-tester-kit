@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/popover";
 import { Settings, Globe, FolderPlus } from "lucide-react";
 import { EnvQuickEdit } from "@/components/env-quick-edit";
+import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { cn } from "@/lib/utils";
 import { useCollectionStore } from "@/store/collection-store";
 import {
@@ -104,6 +105,7 @@ export default function Home() {
               </TooltipTrigger>
               <TooltipContent>Environments</TooltipContent>
             </Tooltip>
+            <ShortcutsDialog />
             <Tooltip>
               <TooltipTrigger
                 className={cn(

@@ -10,6 +10,7 @@ import { useState, useRef } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { CodeGenerator } from "@/components/code-generator-panel";
 import { ResponseSearch } from "@/components/response-search";
+import { useToastStore } from "@/store/toast-store";
 
 export function ResponseViewer() {
   const { getActiveResponse, loading, getActiveRequest } = useRequestStore();
@@ -17,6 +18,7 @@ export function ResponseViewer() {
   const request = getActiveRequest();
   const isLoading = request ? loading[request.id] : false;
   const [copied, setCopied] = useState(false);
+  const { addToast } = useToastStore();
   const downloadCounter = useRef(0);
 
   if (isLoading) {
@@ -41,6 +43,7 @@ export function ResponseViewer() {
   const handleCopy = () => {
     navigator.clipboard.writeText(response.body);
     setCopied(true);
+    addToast("Response body copied to clipboard", "success");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -53,6 +56,7 @@ export function ResponseViewer() {
     a.download = `response-${downloadCounter.current}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    addToast("Response downloaded", "success");
   };
 
   return (

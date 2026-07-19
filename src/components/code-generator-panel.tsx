@@ -16,12 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Copy, Check } from "lucide-react";
+import { useToastStore } from "@/store/toast-store";
 
 export function CodeGenerator() {
   const { getActiveRequest } = useRequestStore();
   const request = getActiveRequest();
   const [language, setLanguage] = useState<CodeLanguage>("curl");
   const [copied, setCopied] = useState(false);
+  const { addToast } = useToastStore();
 
   if (!request) return null;
 
@@ -30,6 +32,7 @@ export function CodeGenerator() {
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
+    addToast("Code copied to clipboard", "success");
     setTimeout(() => setCopied(false), 2000);
   };
 
