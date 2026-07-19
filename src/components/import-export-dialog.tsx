@@ -40,7 +40,7 @@ export function ImportExportDialog({
   onOpenChange,
   collection,
 }: ImportExportDialogProps) {
-  const { createCollection } = useCollectionStore();
+  const { createCollection, addRequestsToCollection } = useCollectionStore();
   const [importText, setImportText] = useState("");
   const [exportFormat, setExportFormat] = useState<"json" | "yaml" | "markdown">("json");
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +53,9 @@ export function ImportExportDialog({
 
     try {
       if (type === "curl") {
-        importCurlCommand(importText);
-        createCollection("Imported cURL");
+        const request = importCurlCommand(importText);
+        const collectionId = createCollection("Imported cURL");
+        addRequestsToCollection(collectionId, [request]);
         setSuccess("cURL command imported successfully!");
       } else {
         const data = JSON.parse(importText);
@@ -84,7 +85,8 @@ export function ImportExportDialog({
           };
         }
 
-        createCollection(imported.name);
+        const collectionId = createCollection(imported.name);
+        addRequestsToCollection(collectionId, imported.requests);
         setSuccess(`Collection "${imported.name}" imported successfully!`);
       }
       setImportText("");

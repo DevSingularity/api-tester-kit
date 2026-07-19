@@ -23,7 +23,9 @@ interface RequestStore {
   cancelControllers: Record<string, AbortController>;
 
   createTab: (request?: Partial<ApiRequest>) => string;
+  duplicateTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
+  renameTab: (tabId: string, name: string) => void;
   setActiveTab: (tabId: string) => void;
   pinTab: (tabId: string) => void;
   updateRequest: (requestId: string, updates: Partial<ApiRequest>) => void;
@@ -95,6 +97,33 @@ export const useRequestStore = create<RequestStore>()(
         return tab.id;
       },
 
+      duplicateTab: (tabId) => {
+        const state = get();
+        const tab = state.tabs.find((t) => t.id === tabId);
+        if (!tab) return;
+        const sourceRequest = state.requests[tab.requestId];
+        if (!sourceRequest) return;
+
+        const newRequest: ApiRequest = {
+          ...sourceRequest,
+          id: generateId(),
+          name: `${sourceRequest.name} (copy)`,
+        };
+        const newTab: RequestTab = {
+          id: generateId(),
+          requestId: newRequest.id,
+          name: newRequest.name,
+          isDirty: false,
+          isPinned: false,
+        };
+
+        set((state) => ({
+          tabs: [...state.tabs, newTab],
+          activeTabId: newTab.id,
+          requests: { ...state.requests, [newRequest.id]: newRequest },
+        }));
+      },
+
       closeTab: (tabId) => {
         set((state) => {
           const tab = state.tabs.find((t) => t.id === tabId);
@@ -122,6 +151,11 @@ export const useRequestStore = create<RequestStore>()(
       },
 
       setActiveTab: (tabId) => set({ activeTabId: tabId }),
+
+      renameTab: (tabId, name) =>
+        set((state) => ({
+          tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, name } : t)),
+        })),
 
       pinTab: (tabId) =>
         set((state) => ({

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, FileUp } from "lucide-react";
 import type { BodyType, KeyValuePair } from "@/types";
+import { generateId } from "@/utils";
 
 const BODY_TYPES: { value: BodyType; label: string }[] = [
   { value: "none", label: "None" },
@@ -29,66 +30,254 @@ interface FormDataField extends KeyValuePair {
   fileName?: string;
 }
 
-export function BodyEditor() {
-  const { getActiveRequest, updateBody, updateHeaders } = useRequestStore();
-  const request = getActiveRequest();
-  const [formDataFields, setFormDataFields] = useState<FormDataField[]>([]);
-  const [formUrlEncodedFields, setFormUrlEncodedFields] = useState<KeyValuePair[]>([]);
+function parseFormUrlEncoded(raw: string | undefined): KeyValuePair[] {
+  if (!raw) return [];
+  try {
+    return raw.split("&").filter(Boolean).map((pair) => {
+      const [key, value] = pair.split("=").map(decodeURIComponent);
+      return { id: generateId(), key, value, enabled: true };
+    });
+  } catch {
+    return [];
+  }
+}
 
-  const setHeader = useCallback((key: string, value: string) => {
-    if (!request) return;
-    const existing = request.headers.find(h => h.key.toLowerCase() === key.toLowerCase());
-    if (existing) {
-        updateHeaders(request.id, request.headers.map(h => h.id === existing.id ? { ...h, value } : h));
-    } else {
-        updateHeaders(request.id, [...request.headers, { id: crypto.randomUUID(), key, value, enabled: true }]);
+function parseFormData(raw: string | undefined): FormDataField[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((f: { key?: string; value?: string; type?: string; fileName?: string }) => ({
+        id: generateId(),
+        key: f.key ?? "",
+        value: f.value ?? "",
+        enabled: true,
+        type: f.type === "file" ? "file" as const : "text" as const,
+        fileName: f.fileName,
+      }));
     }
-  }, [request, updateHeaders]);
+  } catch {
+  }
+  return [];
+}
 
-  const syncFormUrlEncoded = useCallback((fields: KeyValuePair[]) => {
-    const serialized = fields
+function FormUrlEncodedEditor({ requestId }: { requestId: string }) {
+  const { getActiveRequest, updateBody, updateHeaders } = useRequestStore();
+  const req = requestId ? getActiveRequest() : null;
+  const initialFields = parseFormUrlEncoded(req?.body.raw);
+  const [fields, setFields] = useState<KeyValuePair[]>(initialFields);
+
+  const syncFields = useCallback((newFields: KeyValuePair[]) => {
+    const active = useRequestStore.getState().getActiveRequest();
+    if (!active) return;
+    const serialized = newFields
       .filter((f) => f.enabled && f.key)
       .map((f) => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value)}`)
       .join("&");
-    updateBody(request!.id, "x-www-form-urlencoded", serialized);
-    setHeader("Content-Type", "application/x-www-form-urlencoded");
-  }, [request, updateBody, setHeader]);
+    updateBody(requestId, "x-www-form-urlencoded", serialized);
+    const hasContentType = active.headers.some((h) => h.key.toLowerCase() === "content-type");
+    if (!hasContentType) {
+      updateHeaders(requestId, [
+        ...active.headers,
+        { id: generateId(), key: "Content-Type", value: "application/x-www-form-urlencoded", enabled: true },
+      ]);
+    }
+  }, [requestId, updateBody, updateHeaders]);
 
-  const syncFormData = useCallback((fields: FormDataField[]) => {
+  return (
+    <div key={requestId} className="space-y-2">
+      {fields.map((field, i) => (
+        <div key={field.id} className="flex gap-2 items-center">
+          <Input
+            value={field.key}
+            onChange={(e) => {
+              const newFields = [...fields];
+              newFields[i] = { ...newFields[i], key: e.target.value };
+              setFields(newFields);
+              syncFields(newFields);
+            }}
+            placeholder="Key"
+            className="h-7 text-xs font-mono flex-1"
+          />
+          <Input
+            value={field.value}
+            onChange={(e) => {
+              const newFields = [...fields];
+              newFields[i] = { ...newFields[i], value: e.target.value };
+              setFields(newFields);
+              syncFields(newFields);
+            }}
+            placeholder="Value"
+            className="h-7 text-xs font-mono flex-1"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-1.5"
+            onClick={() => {
+              const newFields = fields.filter((_, idx) => idx !== i);
+              setFields(newFields);
+              syncFields(newFields);
+            }}
+          >
+            <Trash2 className="size-3 text-muted-foreground" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
+        onClick={() => {
+          const newFields = [...fields, { id: generateId(), key: "", value: "", enabled: true }];
+          setFields(newFields);
+        }}
+      >
+        <Plus className="size-3" />
+        Add Field
+      </Button>
+    </div>
+  );
+}
+
+function FormDataEditor({ requestId }: { requestId: string }) {
+  const { getActiveRequest, updateBody } = useRequestStore();
+  const req = getActiveRequest();
+  const initialFields = parseFormData(req?.body.raw);
+  const [fields, setFields] = useState<FormDataField[]>(initialFields);
+
+  const syncFields = useCallback((newFields: FormDataField[]) => {
     const serialized = JSON.stringify(
-      fields.filter((f) => f.enabled && f.key).map((f) => ({
+      newFields.filter((f) => f.enabled && f.key).map((f) => ({
         key: f.key,
         value: f.type === "file" ? `[File: ${f.fileName || "upload"}]` : f.value,
         type: f.type,
       }))
     );
-    updateBody(request!.id, "form-data", serialized);
-    // Content-Type is usually multipart/form-data for form-data, 
-    // but the actual boundary is needed. Browser does it automatically 
-    // when using FormData API. For now, keep it simple.
-  }, [request, updateBody]);
+    updateBody(requestId, "form-data", serialized);
+  }, [requestId, updateBody]);
 
-  const onBodyTypeChange = (value: string | null) => {
-      if (!value) return;
-      const bodyType = value as BodyType;
-      updateBody(request!.id, bodyType);
-      if (bodyType === "json") setHeader("Content-Type", "application/json");
-      if (bodyType === "xml") setHeader("Content-Type", "application/xml");
-      if (bodyType === "text") setHeader("Content-Type", "text/plain");
-      if (bodyType === "html") setHeader("Content-Type", "text/html");
-  };
+  return (
+    <div key={requestId} className="space-y-2">
+      {fields.map((field, i) => (
+        <div key={field.id} className="flex gap-2 items-center">
+          <Select
+            value={field.type}
+            onValueChange={(value) => {
+              if (value === "text" || value === "file") {
+                const newFields = [...fields];
+                newFields[i] = { ...newFields[i], type: value };
+                setFields(newFields);
+                syncFields(newFields);
+              }
+            }}
+          >
+            <SelectTrigger className="w-20 h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text" className="text-xs">Text</SelectItem>
+              <SelectItem value="file" className="text-xs">File</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={field.key}
+            onChange={(e) => {
+              const newFields = [...fields];
+              newFields[i] = { ...newFields[i], key: e.target.value };
+              setFields(newFields);
+              syncFields(newFields);
+            }}
+            placeholder="Key"
+            className="h-7 text-xs font-mono flex-1"
+          />
+          {field.type === "text" ? (
+            <Input
+              value={field.value}
+              onChange={(e) => {
+                const newFields = [...fields];
+                newFields[i] = { ...newFields[i], value: e.target.value };
+                setFields(newFields);
+                syncFields(newFields);
+              }}
+              placeholder="Value"
+              className="h-7 text-xs font-mono flex-1"
+            />
+          ) : (
+            <div className="flex-1 flex items-center gap-1 h-7 px-2 border rounded text-xs text-muted-foreground">
+              <FileUp className="size-3" />
+              <span className="truncate">{field.fileName || "Choose file..."}</span>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-1.5"
+            onClick={() => {
+              const newFields = fields.filter((_, idx) => idx !== i);
+              setFields(newFields);
+              syncFields(newFields);
+            }}
+          >
+            <Trash2 className="size-3 text-muted-foreground" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
+        onClick={() => {
+          const newFields = [
+            ...fields,
+            { id: generateId(), key: "", value: "", enabled: true, type: "text" as const },
+          ];
+          setFields(newFields);
+        }}
+      >
+        <Plus className="size-3" />
+        Add Field
+      </Button>
+    </div>
+  );
+}
+
+export function BodyEditor() {
+  const { getActiveRequest, updateBody, updateHeaders } = useRequestStore();
+  const request = getActiveRequest();
 
   if (!request) return null;
 
   const bodyType = request.body.type;
 
+  const setContentType = (ct: string) => {
+    const existing = request.headers.find(h => h.key.toLowerCase() === "content-type");
+    if (existing) {
+      updateHeaders(request.id, request.headers.map(h =>
+        h.id === existing.id ? { ...h, value: ct } : h
+      ));
+    } else {
+      updateHeaders(request.id, [
+        ...request.headers,
+        { id: generateId(), key: "Content-Type", value: ct, enabled: true },
+      ]);
+    }
+  };
+
+  const onBodyTypeChange = (value: string | null) => {
+    if (!value) return;
+    const newType = value as BodyType;
+    updateBody(request.id, newType);
+    if (newType === "json") setContentType("application/json");
+    else if (newType === "xml") setContentType("application/xml");
+    else if (newType === "text") setContentType("text/plain");
+    else if (newType === "html") setContentType("text/html");
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Select
-          value={bodyType}
-          onValueChange={onBodyTypeChange}
-        >
+        <Select value={bodyType} onValueChange={onBodyTypeChange}>
           <SelectTrigger className="w-40 h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -107,6 +296,27 @@ export function BodyEditor() {
           <textarea
             value={request.body.raw ?? ""}
             onChange={(e) => updateBody(request.id, bodyType, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Tab") {
+                e.preventDefault();
+                const textarea = e.currentTarget;
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const value = textarea.value;
+                textarea.value = value.substring(0, start) + "    " + value.substring(end);
+                textarea.selectionStart = textarea.selectionEnd = start + 4;
+                updateBody(request.id, bodyType, textarea.value);
+              }
+            }}
+            onBlur={() => {
+              if (bodyType === "json") {
+                try {
+                  const parsed = JSON.parse(request.body.raw ?? "");
+                  updateBody(request.id, bodyType, JSON.stringify(parsed, null, 2));
+                } catch {
+                }
+              }
+            }}
             placeholder={
               bodyType === "json"
                 ? '{\n  "key": "value"\n}'
@@ -121,151 +331,11 @@ export function BodyEditor() {
       )}
 
       {bodyType === "x-www-form-urlencoded" && (
-        <div className="space-y-2">
-          {formUrlEncodedFields.map((field, i) => (
-            <div key={field.id} className="flex gap-2 items-center">
-              <Input
-                value={field.key}
-                onChange={(e) => {
-                  const newFields = [...formUrlEncodedFields];
-                  newFields[i] = { ...newFields[i], key: e.target.value };
-                  setFormUrlEncodedFields(newFields);
-                  syncFormUrlEncoded(newFields);
-                }}
-                placeholder="Key"
-                className="h-7 text-xs font-mono flex-1"
-              />
-              <Input
-                value={field.value}
-                onChange={(e) => {
-                  const newFields = [...formUrlEncodedFields];
-                  newFields[i] = { ...newFields[i], value: e.target.value };
-                  setFormUrlEncodedFields(newFields);
-                  syncFormUrlEncoded(newFields);
-                }}
-                placeholder="Value"
-                className="h-7 text-xs font-mono flex-1"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-1.5"
-                onClick={() => {
-                  const newFields = formUrlEncodedFields.filter((_, idx) => idx !== i);
-                  setFormUrlEncodedFields(newFields);
-                  syncFormUrlEncoded(newFields);
-                }}
-              >
-                <Trash2 className="size-3 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            onClick={() => {
-              const newFields = [
-                ...formUrlEncodedFields,
-                { id: crypto.randomUUID(), key: "", value: "", enabled: true },
-              ];
-              setFormUrlEncodedFields(newFields);
-            }}
-          >
-            <Plus className="size-3" />
-            Add Field
-          </Button>
-        </div>
+        <FormUrlEncodedEditor requestId={request.id} />
       )}
 
       {bodyType === "form-data" && (
-        <div className="space-y-2">
-          {formDataFields.map((field, i) => (
-            <div key={field.id} className="flex gap-2 items-center">
-              <Select
-                value={field.type}
-                onValueChange={(value) => {
-                  if (value === "text" || value === "file") {
-                    const newFields = [...formDataFields];
-                    newFields[i] = { ...newFields[i], type: value };
-                    setFormDataFields(newFields);
-                    syncFormData(newFields);
-                  }
-                }}
-              >
-                <SelectTrigger className="w-20 h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text" className="text-xs">Text</SelectItem>
-                  <SelectItem value="file" className="text-xs">File</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                value={field.key}
-                onChange={(e) => {
-                  const newFields = [...formDataFields];
-                  newFields[i] = { ...newFields[i], key: e.target.value };
-                  setFormDataFields(newFields);
-                  syncFormData(newFields);
-                }}
-                placeholder="Key"
-                className="h-7 text-xs font-mono flex-1"
-              />
-              {field.type === "text" ? (
-                <Input
-                  value={field.value}
-                  onChange={(e) => {
-                    const newFields = [...formDataFields];
-                    newFields[i] = { ...newFields[i], value: e.target.value };
-                    setFormDataFields(newFields);
-                    syncFormData(newFields);
-                  }}
-                  placeholder="Value"
-                  className="h-7 text-xs font-mono flex-1"
-                />
-              ) : (
-                <div className="flex-1 flex items-center gap-1 h-7 px-2 border rounded text-xs text-muted-foreground">
-                  <FileUp className="size-3" />
-                  <span className="truncate">{field.fileName || "Choose file..."}</span>
-                </div>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-1.5"
-                onClick={() => {
-                  const newFields = formDataFields.filter((_, idx) => idx !== i);
-                  setFormDataFields(newFields);
-                  syncFormData(newFields);
-                }}
-              >
-                <Trash2 className="size-3 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            onClick={() => {
-              const newFields = [
-                ...formDataFields,
-                {
-                  id: crypto.randomUUID(),
-                  key: "",
-                  value: "",
-                  enabled: true,
-                  type: "text" as const,
-                },
-              ];
-              setFormDataFields(newFields);
-            }}
-          >
-            <Plus className="size-3" />
-            Add Field
-          </Button>
-        </div>
+        <FormDataEditor requestId={request.id} />
       )}
     </div>
   );

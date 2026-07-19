@@ -101,7 +101,7 @@ export const useEnvironmentStore = create<EnvironmentStore>()(
 
       resolveVariables: (template) => {
         const vars = get().getActiveVariables();
-        return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+        return template.replace(/\{\{([\w.-]+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
       },
     }),
     {

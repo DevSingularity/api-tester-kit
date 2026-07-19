@@ -1,17 +1,11 @@
 import type { ApiRequest, ApiResponse, ProxyMode } from "@/types";
+import { substituteVariables } from "@/utils";
 
 interface SendRequestOptions {
   request: ApiRequest;
   proxyMode: ProxyMode;
   variables: Record<string, string>;
   signal?: AbortSignal;
-}
-
-function substituteVariables(
-  template: string,
-  variables: Record<string, string>
-): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => variables[key] ?? `{{${key}}}`);
 }
 
 function buildHeaders(

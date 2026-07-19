@@ -11,6 +11,7 @@ interface CollectionStore {
   deleteCollection: (id: string) => void;
   renameCollection: (id: string, name: string) => void;
   addRequestToCollection: (collectionId: string, request: ApiRequest) => void;
+  addRequestsToCollection: (collectionId: string, requests: ApiRequest[]) => void;
   getCollections: () => Collection[];
 }
 
@@ -51,18 +52,34 @@ export const useCollectionStore = create<CollectionStore>()(
           ),
         })),
 
-      addRequestToCollection: (collectionId, request) =>
-        set((state) => ({
-          collections: state.collections.map((c) =>
-            c.id === collectionId
-              ? {
-                  ...c,
-                  requests: [...c.requests, { ...request, collectionId }],
-                  updatedAt: new Date().toISOString(),
-                }
-              : c
-          ),
-        })),
+  addRequestToCollection: (collectionId, request) =>
+    set((state) => ({
+      collections: state.collections.map((c) =>
+        c.id === collectionId
+          ? {
+              ...c,
+              requests: [...c.requests, { ...request, collectionId }],
+              updatedAt: new Date().toISOString(),
+            }
+          : c
+      ),
+    })),
+
+  addRequestsToCollection: (collectionId, requests) =>
+    set((state) => ({
+      collections: state.collections.map((c) =>
+        c.id === collectionId
+          ? {
+              ...c,
+              requests: [
+                ...c.requests,
+                ...requests.map((r) => ({ ...r, collectionId })),
+              ],
+              updatedAt: new Date().toISOString(),
+            }
+          : c
+      ),
+    })),
 
       getCollections: () => get().collections,
     }),

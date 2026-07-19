@@ -1,13 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useRequestStore } from "@/store/request-store";
 import { cn } from "@/lib/utils";
-import { X, Pin, Plus } from "lucide-react";
+import { X, Pin, Plus, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function RequestTabs() {
-  const { tabs, activeTabId, setActiveTab, closeTab, pinTab, createTab } =
+  const { tabs, activeTabId, setActiveTab, closeTab, pinTab, createTab, renameTab, duplicateTab } =
     useRequestStore();
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  const handleRename = (tabId: string) => {
+    renameTab(tabId, editingName);
+    setEditingTabId(null);
+  };
 
   return (
     <div className="flex items-center border-b border-border bg-background overflow-x-auto">
@@ -20,6 +28,10 @@ export function RequestTabs() {
               activeTabId === tab.id && "bg-muted"
             )}
             onClick={() => setActiveTab(tab.id)}
+            onDoubleClick={() => {
+              setEditingTabId(tab.id);
+              setEditingName(tab.name);
+            }}
           >
             <button
               onClick={(e) => {
@@ -33,7 +45,29 @@ export function RequestTabs() {
             >
               <Pin className="size-3" />
             </button>
-            <span className="truncate">{tab.name}</span>
+            {editingTabId === tab.id ? (
+              <input
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={() => handleRename(tab.id)}
+                onKeyDown={(e) => e.key === "Enter" && handleRename(tab.id)}
+                className="w-full bg-transparent focus:outline-none"
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="truncate">{tab.name}</span>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateTab(tab.id);
+              }}
+              className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+              title="Duplicate tab"
+            >
+              <Copy className="size-3" />
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();

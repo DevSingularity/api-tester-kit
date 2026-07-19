@@ -4,6 +4,7 @@ import type { HttpMethod } from "@/types";
 import { useRequestStore } from "@/store/request-store";
 import { useEnvironmentStore } from "@/store/environment-store";
 import { sendRequest } from "@/lib/api-engine";
+import { importCurlCommand } from "@/lib/import-export";
 import { MethodSelector } from "@/components/method-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,39 @@ export function UrlBar() {
   const { resolveVariables } = useEnvironmentStore();
   const { addEntry } = useHistoryStore();
   const request = getActiveRequest();
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const state = useRequestStore.getState();
+    const activeRequest = state.getActiveRequest();
+    if (!activeRequest) return;
+
+    const text = e.clipboardData.getData("text");
+    if (!text.trim().toLowerCase().startsWith("curl ")) return;
+    e.preventDefault();
+
+    try {
+      const parsed = importCurlCommand(text);
+      state.updateUrl(activeRequest.id, parsed.url);
+      state.updateMethod(activeRequest.id, parsed.method);
+      if (parsed.headers.length > 0) {
+        const existingHeaders = activeRequest.headers.filter(
+          (h) => !h.key || h.key === "Content-Type"
+        );
+        const merged = [...existingHeaders];
+        for (const ph of parsed.headers) {
+          if (!merged.some((mh) => mh.key.toLowerCase() === ph.key.toLowerCase())) {
+            merged.push(ph);
+          }
+        }
+        state.updateHeaders(activeRequest.id, merged);
+      }
+      if (parsed.body.type !== "none" && parsed.body.raw) {
+        state.updateBody(activeRequest.id, parsed.body.type, parsed.body.raw);
+      }
+    } catch {
+      // If parsing fails, treat as regular URL input
+    }
+  };
 
   if (!request) return null;
 
@@ -79,6 +113,7 @@ export function UrlBar() {
       <Input
         value={request.url}
         onChange={(e) => updateUrl(request.id, e.target.value)}
+        onPaste={handlePaste}
         placeholder="Enter URL or paste cURL"
         className="h-9 rounded-none border-l-0 border-r-0 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
       />
