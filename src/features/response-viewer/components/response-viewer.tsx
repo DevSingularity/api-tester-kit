@@ -13,6 +13,12 @@ import {
   Search,
   Cookie,
   Clock,
+  Activity,
+  BarChart3,
+  Info,
+  Gauge,
+  FileJson,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useMemo } from "react";
@@ -20,6 +26,8 @@ import { JsonViewer } from "@/components/json-viewer";
 import { CodeGenerator } from "@/components/code-generator-panel";
 import { ResponseSearch } from "@/components/response-search";
 import { useToastStore } from "@/store/toast-store";
+import { usePerformanceStore, normalizeEndpoint } from "@/store/performance-store";
+import type { ApiResponse } from "@/types";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -75,6 +83,43 @@ function formatJSType(value: unknown): string {
 
 function formatCurlBody(body: string): string {
   return `-d '${body.replace(/'/g, "\\'")}'`;
+}
+
+function formatTransferSpeed(bytes: number, ms: number): string {
+  if (ms <= 0 || bytes <= 0) return "0 B/s";
+  const bytesPerSec = (bytes / ms) * 1000;
+  if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+  if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+  return `${Math.round(bytesPerSec)} B/s`;
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = Math.ceil(p * sorted.length) - 1;
+  return sorted[Math.max(0, Math.min(idx, sorted.length - 1))];
+}
+
+interface ServerTimingEntry {
+  name: string;
+  description?: string;
+  duration?: number;
+}
+
+function parseServerTiming(header: string): ServerTimingEntry[] {
+  return header.split(",").map((part) => {
+    const items = part.trim().split(";");
+    const name = items[0];
+    const entry: ServerTimingEntry = { name };
+    for (let i = 1; i < items.length; i++) {
+      const eqIdx = items[i].indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = items[i].slice(0, eqIdx).trim();
+      const val = items[i].slice(eqIdx + 1).trim().replace(/^"|"$/g, "");
+      if (key === "dur") entry.duration = parseFloat(val);
+      else if (key === "desc") entry.description = val;
+    }
+    return entry;
+  });
 }
 
 export function ResponseViewer() {
@@ -269,6 +314,13 @@ export function ResponseViewer() {
               </TabsTrigger>
             )}
             <TabsTrigger
+              value="performance"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
+            >
+              <Activity className="size-3 mr-1" />
+              Performance
+            </TabsTrigger>
+            <TabsTrigger
               value="code"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
             >
@@ -364,10 +416,339 @@ export function ResponseViewer() {
           </div>
         </TabsContent>
 
+        <TabsContent value="performance" className="flex-1 m-0 overflow-auto p-3 space-y-4">
+          <PerformanceTabContent response={response} url={request?.url ?? ""} />
+        </TabsContent>
+
         <TabsContent value="code" className="flex-1 m-0 overflow-auto p-3">
           <CodeGenerator />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function PerformanceTabContent({ response, url }: { response: ApiResponse; url: string }) {
+  const entries = usePerformanceStore((s) => s.entries);
+  const { addToast } = useToastStore();
+  const endpointKey = normalizeEndpoint(url);
+  const history = useMemo(
+    () =>
+      entries
+        .filter((e) => e.endpointKey === endpointKey)
+        .slice(0, 20)
+        .reverse(),
+    [entries, endpointKey]
+  );
+
+  const timing = response.timing;
+  const hasBreakdown = timing && (timing.ttfb || timing.download);
+
+  // Server-Timing header
+  const serverTiming = useMemo(() => {
+    const hdr = response.headers?.["server-timing"] || response.headers?.["Server-Timing"];
+    return hdr ? parseServerTiming(hdr) : null;
+  }, [response]);
+
+  // Transfer speed
+  const transferSpeed = useMemo(() => {
+    if (response.size <= 0 || response.time <= 0) return null;
+    const dlMs = timing?.download ?? response.time;
+    return formatTransferSpeed(response.size, dlMs);
+  }, [response, timing]);
+
+  // Stats
+  const times = history.map((e) => e.time);
+  const avgTime = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+  const minTime = times.length > 0 ? Math.min(...times) : 0;
+  const maxTime = times.length > 0 ? Math.max(...times) : 0;
+  const sortedTimes = [...times].sort((a, b) => a - b);
+  const p50 = percentile(sortedTimes, 0.5);
+  const p90 = percentile(sortedTimes, 0.9);
+  const p95 = percentile(sortedTimes, 0.95);
+  const p99 = percentile(sortedTimes, 0.99);
+
+  const chartMax = Math.max(maxTime, 1);
+
+  // Total time line points
+  const totalPoints = useMemo(() => {
+    if (history.length < 2) return "";
+    return history
+      .map((e, i) => {
+        const x = (i / (history.length - 1)) * 300;
+        const y = 76 - ((e.time / chartMax) * 72);
+        return `${x},${y}`;
+      })
+      .join(" ");
+  }, [history, chartMax]);
+
+  // TTFB line points
+  const hasTtfbHistory = history.some((e) => e.ttfb > 0);
+  const ttfbPoints = useMemo(() => {
+    if (history.length < 2 || !hasTtfbHistory) return "";
+    return history
+      .map((e, i) => {
+        const x = (i / (history.length - 1)) * 300;
+        const y = 76 - (((e.ttfb || 0) / chartMax) * 72);
+        return `${x},${y}`;
+      })
+      .join(" ");
+  }, [history, chartMax, hasTtfbHistory]);
+
+  const handleExport = () => {
+    const data = {
+      endpoint: endpointKey,
+      currentResponse: {
+        status: response.status,
+        time: response.time,
+        timing: response.timing,
+        size: response.size,
+        timestamp: response.timestamp,
+      },
+      history: history.map((e) => ({
+        method: e.method,
+        status: e.status,
+        time: e.time,
+        ttfb: e.ttfb,
+        download: e.download,
+        size: e.size,
+        timestamp: e.timestamp,
+      })),
+      stats: { avg: avgTime, min: minTime, max: maxTime, p50, p90, p95, p99, totalRequests: history.length },
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const urlObj = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = urlObj;
+    a.download = `perf-${endpointKey.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40)}.json`;
+    a.click();
+    URL.revokeObjectURL(urlObj);
+    addToast("Performance data exported", "success");
+  };
+
+  return (
+    <>
+      {/* Timing Breakdown + Server-Timing */}
+      <div>
+        <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+          <BarChart3 className="size-3" />
+          Timing Breakdown
+          {transferSpeed && (
+            <span className="ml-auto text-[10px] text-muted-foreground font-normal flex items-center gap-1">
+              <Gauge className="size-2.5" />
+              {transferSpeed}
+            </span>
+          )}
+        </h4>
+        {hasBreakdown ? (
+          <TimingBreakdown timing={timing} total={response.time} />
+        ) : (
+          <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-lg flex items-center gap-2">
+            <Info className="size-3 shrink-0" />
+            <span>
+              Detailed timing breakdown not available for this response.
+              {response.time > 0 && (
+                <>{' '}Total time: <strong>{formatDuration(response.time)}</strong>.</>
+              )}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Server-Timing */}
+      {serverTiming && serverTiming.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+            <Activity className="size-3" />
+            Server-Timing
+          </h4>
+          <div className="space-y-1">
+            {serverTiming.map((entry, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs font-mono p-1.5 bg-muted/30 rounded">
+                <span className="font-medium text-foreground">{entry.name}</span>
+                {entry.description && (
+                  <span className="text-muted-foreground">— {entry.description}</span>
+                )}
+                {entry.duration !== undefined && (
+                  <span className="ml-auto text-foreground">{formatDuration(entry.duration)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Response Time History */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-semibold flex items-center gap-1.5">
+            <Activity className="size-3" />
+            Response Time History
+          </h4>
+          {history.length >= 2 && (
+            <Button variant="ghost" size="icon-xs" onClick={handleExport} title="Export performance data">
+              <FileJson className="size-3" />
+            </Button>
+          )}
+        </div>
+        {history.length >= 2 ? (
+          <>
+            <div className="bg-muted/30 rounded-lg p-2">
+              <svg viewBox="0 0 300 80" className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+                <line x1={0} y1={4} x2={300} y2={4} stroke="hsl(var(--border))" strokeWidth={0.5} />
+                <line x1={0} y1={40} x2={300} y2={40} stroke="hsl(var(--border))" strokeWidth={0.5} />
+                <line x1={0} y1={76} x2={300} y2={76} stroke="hsl(var(--border))" strokeWidth={0.5} />
+                <text x={298} y={6} className="fill-muted-foreground" fontSize={7} textAnchor="end">
+                  {formatDuration(chartMax)}
+                </text>
+                <text x={298} y={42} className="fill-muted-foreground" fontSize={7} textAnchor="end">
+                  {formatDuration(chartMax / 2)}
+                </text>
+                <text x={298} y={78} className="fill-muted-foreground" fontSize={7} textAnchor="end">
+                  0ms
+                </text>
+                {/* Total area fill */}
+                <polygon points={`0,76 ${totalPoints} 300,76`} fill="hsl(var(--primary) / 0.1)" />
+                {/* Total line */}
+                <polyline points={totalPoints} fill="none" stroke="hsl(var(--primary))" strokeWidth={1.5} />
+                {history.map((e, i) => {
+                  const x = (i / (history.length - 1)) * 300;
+                  const y = 76 - ((e.time / chartMax) * 72);
+                  return (
+                    <circle key={e.id} cx={x} cy={y} r={2} fill="hsl(var(--primary))">
+                      <title>{`${e.method} ${e.status}: ${formatDuration(e.time)}`}</title>
+                    </circle>
+                  );
+                })}
+                {/* TTFB line overlay */}
+                {hasTtfbHistory && (
+                  <>
+                    <polyline points={ttfbPoints} fill="none" stroke="hsl(var(--primary))" strokeWidth={1} strokeDasharray="3 2" opacity={0.6} />
+                    {history.map((e, i) => {
+                      if (!e.ttfb) return null;
+                      const x = (i / (history.length - 1)) * 300;
+                      const y = 76 - ((e.ttfb / chartMax) * 72);
+                      return <circle key={`ttfb-${e.id}`} cx={x} cy={y} r={1.5} fill="hsl(var(--primary))" opacity={0.5} />;
+                    })}
+                  </>
+                )}
+              </svg>
+              {hasTtfbHistory && (
+                <div className="flex items-center gap-3 text-[9px] text-muted-foreground mt-1 px-1">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-0.5 bg-primary rounded-full" /> Total
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-0.5 bg-primary rounded-full opacity-60" style={{ strokeDasharray: "3 2" }} /> TTFB
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+              <span>Oldest</span>
+              <span>{history.length} requests</span>
+              <span>Newest</span>
+            </div>
+          </>
+        ) : (
+          <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-lg flex items-center gap-2">
+            <Activity className="size-3 shrink-0" />
+            <span>
+              {history.length === 1
+                ? "Send more requests to see response time trends."
+                : "No historical data yet. Send some requests first."}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Stats */}
+      {history.length >= 2 && (
+        <div>
+          <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+            <TrendingUp className="size-3" />
+            Distribution
+          </h4>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "P50", value: formatDuration(p50), desc: "Median" },
+              { label: "P90", value: formatDuration(p90), desc: "90th percentile" },
+              { label: "P95", value: formatDuration(p95), desc: "95th percentile" },
+              { label: "P99", value: formatDuration(p99), desc: "99th percentile" },
+            ].map(({ label, value, desc }) => (
+              <div key={label} className="p-2 bg-muted/30 rounded-lg text-center">
+                <div className="text-[10px] font-semibold text-foreground">{label}</div>
+                <div className="text-xs font-mono mt-0.5">{value}</div>
+                <div className="text-[9px] text-muted-foreground">{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="p-2 bg-muted/30 rounded-lg text-center">
+              <div className="text-[10px] text-muted-foreground">Average</div>
+              <div className="text-xs font-mono font-semibold mt-0.5">{formatDuration(avgTime)}</div>
+            </div>
+            <div className="p-2 bg-muted/30 rounded-lg text-center">
+              <div className="text-[10px] text-muted-foreground">Min</div>
+              <div className="text-xs font-mono font-semibold mt-0.5">{formatDuration(minTime)}</div>
+            </div>
+            <div className="p-2 bg-muted/30 rounded-lg text-center">
+              <div className="text-[10px] text-muted-foreground">Max</div>
+              <div className="text-xs font-mono font-semibold mt-0.5">{formatDuration(maxTime)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function TimingBreakdown({
+  timing,
+  total,
+}: {
+  timing: NonNullable<ApiResponse["timing"]>;
+  total: number;
+}) {
+  const segments = [
+    { label: "TTFB", value: timing.ttfb ?? 0, color: "bg-sky-500", desc: "Time to first byte" },
+    { label: "Download", value: timing.download ?? 0, color: "bg-violet-500", desc: "Body download" },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {segments.map((seg) => {
+        const pct = total > 0 ? (seg.value / total) * 100 : 0;
+        return (
+          <div key={seg.label} className="flex items-center gap-2">
+            <div className="w-16 shrink-0">
+              <div className="text-xs font-medium">{seg.label}</div>
+              <div className="text-[9px] text-muted-foreground leading-tight">{seg.desc}</div>
+            </div>
+            <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden">
+              <div
+                className={cn("h-full rounded-full transition-all", seg.color)}
+                style={{ width: `${Math.max(pct, 1)}%` }}
+              />
+            </div>
+            <div className="w-14 text-right text-xs font-mono shrink-0">
+              {formatDuration(seg.value)}
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-2 pt-1.5 mt-1.5 border-t border-border">
+        <div className="w-16 shrink-0">
+          <div className="text-xs font-medium">Total</div>
+        </div>
+        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-foreground/60" style={{ width: "100%" }} />
+        </div>
+        <div className="w-14 text-right text-xs font-mono shrink-0">
+          {formatDuration(total)}
+        </div>
+      </div>
     </div>
   );
 }

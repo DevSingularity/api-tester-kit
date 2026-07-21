@@ -93,6 +93,14 @@ export interface ApiResponse {
   time: number;
   size: number;
   timestamp: string;
+  timing?: {
+    dnsLookup?: number;
+    tcpConnect?: number;
+    tlsHandshake?: number;
+    ttfb?: number;
+    download?: number;
+    total: number;
+  };
 }
 
 export interface RequestTab {

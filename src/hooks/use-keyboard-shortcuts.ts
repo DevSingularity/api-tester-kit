@@ -7,6 +7,7 @@ import { useEnvironmentStore } from "@/store/environment-store";
 import { useHistoryStore } from "@/store/history-store";
 import { useToastStore } from "@/store/toast-store";
 import { useUIStore } from "@/store/ui-store";
+import { usePerformanceStore, normalizeEndpoint } from "@/store/performance-store";
 
 export function useKeyboardShortcuts() {
   const {
@@ -47,6 +48,17 @@ export function useKeyboardShortcuts() {
           .then((response) => {
             setResponse(request.id, response);
             addEntry({ request, response });
+            usePerformanceStore.getState().addEntry({
+              endpointKey: normalizeEndpoint(request.url),
+              method: request.method,
+              url: request.url,
+              status: response.status,
+              time: response.time,
+              ttfb: response.timing?.ttfb || response.time,
+              download: response.timing?.download || 0,
+              size: response.size,
+              timestamp: response.timestamp,
+            });
             addToast(
               `Request completed: ${response.status} ${response.statusText}`,
               response.status >= 400 ? "warning" : "success"

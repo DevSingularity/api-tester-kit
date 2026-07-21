@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Send, Square, Pencil } from "lucide-react";
 import { useHistoryStore } from "@/store/history-store";
 import { useToastStore } from "@/store/toast-store";
+import { usePerformanceStore, normalizeEndpoint } from "@/store/performance-store";
 
 export function UrlBar() {
   const {
@@ -101,6 +102,17 @@ export function UrlBar() {
 
       setResponse(request.id, response);
       addEntry({ request, response });
+      usePerformanceStore.getState().addEntry({
+        endpointKey: normalizeEndpoint(request.url),
+        method: request.method,
+        url: request.url,
+        status: response.status,
+        time: response.time,
+        ttfb: response.timing?.ttfb || response.time,
+        download: response.timing?.download || 0,
+        size: response.size,
+        timestamp: response.timestamp,
+      });
       addToast(`Request completed: ${response.status} ${response.statusText}`, response.status >= 400 ? "warning" : "success");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;

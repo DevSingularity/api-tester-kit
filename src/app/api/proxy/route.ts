@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const startTime = performance.now();
     const response = await fetch(targetUrl, fetchOptions);
-    const endTime = performance.now();
+    const headerTime = performance.now();
 
     const contentType = response.headers.get("content-type") ?? "";
     const isStreamable =
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
 
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
+      const endTime = performance.now();
 
       const stream = new ReadableStream({
         async start(controller) {
@@ -79,23 +80,37 @@ export async function POST(request: NextRequest) {
           "Content-Type": "text/plain",
           "X-Original-Status": String(response.status),
           "X-Response-Time": String(endTime - startTime),
+          "X-Proxy-TTFB": String(headerTime - startTime),
         },
       });
     }
 
     const responseText = await response.text();
+    const bodyTime = performance.now();
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
     });
+
+    const total = bodyTime - startTime;
+    const ttfb = headerTime - startTime;
+    const download = bodyTime - headerTime;
 
     return NextResponse.json({
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
       body: responseText,
-      time: endTime - startTime,
+      time: total,
       size: new Blob([responseText]).size,
+      timing: {
+        dnsLookup: 0,
+        tcpConnect: 0,
+        tlsHandshake: 0,
+        ttfb: Math.round(ttfb),
+        download: Math.round(download),
+        total: Math.round(total),
+      },
     });
   } catch (error) {
     const message =

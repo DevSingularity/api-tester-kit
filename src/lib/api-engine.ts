@@ -95,11 +95,12 @@ export async function sendRequest({
   const headers = buildHeaders(request, variables);
   const body = buildBody(request, variables);
 
-  const startTime = performance.now();
+  const clientStart = performance.now();
 
   async function doFetch(fetchUrl: string, options: RequestInit): Promise<ApiResponse> {
+    const clientHeadersStart = performance.now();
     const response = await fetch(fetchUrl, options);
-    const endTime = performance.now();
+    const clientHeadersEnd = performance.now();
 
     if (proxyMode === "proxy" || proxyMode === "auto") {
       const contentType = response.headers.get("content-type") ?? "";
@@ -107,18 +108,28 @@ export async function sendRequest({
 
       if (isJson) {
         const proxyResponse = await response.json();
+        const clientBodyEnd = performance.now();
         return {
           status: proxyResponse.status ?? response.status,
           statusText: proxyResponse.statusText ?? response.statusText,
           headers: proxyResponse.headers ?? {},
           body: proxyResponse.body ?? "",
-          time: proxyResponse.time ?? endTime - startTime,
+          time: proxyResponse.time ?? clientBodyEnd - clientStart,
           size: proxyResponse.size ?? 0,
           timestamp: new Date().toISOString(),
+          timing: proxyResponse.timing || {
+            dnsLookup: 0,
+            tcpConnect: 0,
+            tlsHandshake: 0,
+            ttfb: Math.round(clientHeadersEnd - clientStart),
+            download: Math.round(clientBodyEnd - clientHeadersEnd),
+            total: Math.round(clientBodyEnd - clientStart),
+          },
         };
       }
 
       const responseText = await response.text();
+      const clientBodyEnd = performance.now();
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key] = value;
@@ -128,18 +139,26 @@ export async function sendRequest({
         statusText: response.statusText,
         headers: responseHeaders,
         body: responseText,
-        time: parseFloat(response.headers.get("X-Response-Time") ?? String(endTime - startTime)),
+        time: parseFloat(response.headers.get("X-Response-Time") ?? String(clientBodyEnd - clientStart)),
         size: new Blob([responseText]).size,
         timestamp: new Date().toISOString(),
+        timing: {
+          dnsLookup: 0,
+          tcpConnect: 0,
+          tlsHandshake: 0,
+          ttfb: Math.round(clientHeadersEnd - clientStart),
+          download: Math.round(clientBodyEnd - clientHeadersEnd),
+          total: Math.round(clientBodyEnd - clientStart),
+        },
       };
     }
 
+    const responseBody = await response.text();
+    const clientBodyEnd = performance.now();
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
     });
-
-    const responseBody = await response.text();
     const size = new Blob([responseBody]).size;
 
     return {
@@ -147,9 +166,17 @@ export async function sendRequest({
       statusText: response.statusText,
       headers: responseHeaders,
       body: responseBody,
-      time: endTime - startTime,
+      time: clientBodyEnd - clientStart,
       size,
       timestamp: new Date().toISOString(),
+      timing: {
+        dnsLookup: 0,
+        tcpConnect: 0,
+        tlsHandshake: 0,
+        ttfb: Math.round(clientHeadersEnd - clientStart),
+        download: Math.round(clientBodyEnd - clientHeadersEnd),
+        total: Math.round(clientBodyEnd - clientStart),
+      },
     };
   }
 
