@@ -33,13 +33,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function Home() {
-  const { createTab, tabs, getActiveRequest } = useRequestStore();
+  const { createTab, tabs, getActiveRequest, activeTabId, updateTab } = useRequestStore();
   const { collections, addRequestToCollection } = useCollectionStore();
   const request = getActiveRequest();
   const { addToast } = useToastStore();
-  const { panelSplitPercent, setPanelSplitPercent } = useUIStore();
+  const { panelSplitPercent: globalSplitPercent, setPanelSplitPercent } = useUIStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const panelSplitPercent = activeTab?.splitPercent ?? globalSplitPercent;
 
   useKeyboardShortcuts();
 
@@ -52,6 +55,9 @@ export default function Home() {
       const rect = containerRef.current.getBoundingClientRect();
       let percent = ((e.clientX - rect.left) / rect.width) * 100;
       percent = Math.max(20, Math.min(80, percent));
+      if (activeTabId) {
+        updateTab(activeTabId, { splitPercent: percent });
+      }
       setPanelSplitPercent(percent);
     };
 
@@ -63,7 +69,7 @@ export default function Home() {
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-  }, [setPanelSplitPercent]);
+  }, [setPanelSplitPercent, activeTabId, updateTab]);
 
   useEffect(() => {
     if (isDragging) {

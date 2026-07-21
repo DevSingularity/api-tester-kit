@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useRef, useMemo, useCallback } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { CodeGenerator } from "@/components/code-generator-panel";
+import { ResponseDiff } from "@/components/response-diff";
 import { ResponseSearch } from "@/components/response-search";
 import { useToastStore } from "@/store/toast-store";
 import { usePerformanceStore, normalizeEndpoint } from "@/store/performance-store";
@@ -129,10 +130,11 @@ function parseServerTiming(header: string): ServerTimingEntry[] {
 }
 
 export function ResponseViewer() {
-  const { getActiveResponse, loading, getActiveRequest } = useRequestStore();
+  const { getActiveResponse, loading, getActiveRequest, previousResponses } = useRequestStore();
   const response = getActiveResponse();
   const request = getActiveRequest();
   const isLoading = request ? loading[request.id] : false;
+  const previousResponse = request && response ? previousResponses[request.id] : undefined;
   const { addToast } = useToastStore();
   const downloadCounter = useRef(0);
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
@@ -378,6 +380,14 @@ export function ResponseViewer() {
                 Preview
               </TabsTrigger>
             )}
+            {previousResponse && (
+              <TabsTrigger
+                value="diff"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
+              >
+                Diff
+              </TabsTrigger>
+            )}
           </TabsList>
           {isJson && (
             <div className="flex items-center gap-0.5">
@@ -523,6 +533,11 @@ export function ResponseViewer() {
                 />
               </div>
             )}
+          </TabsContent>
+        )}
+        {previousResponse && (
+          <TabsContent value="diff" className="flex-1 m-0 overflow-hidden">
+            <ResponseDiff previous={previousResponse} current={response} />
           </TabsContent>
         )}
       </Tabs>

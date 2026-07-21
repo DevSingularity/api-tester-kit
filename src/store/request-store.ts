@@ -13,19 +13,28 @@ import type {
 import { generateId } from "@/utils";
 import { indexedDBStorage } from "@/lib/indexeddb-storage";
 
+export interface ScriptResultData {
+  logs: string[];
+  errors: string[];
+  assertions: { passed: number; failed: number; messages: string[] };
+}
+
 interface RequestStore {
   tabs: RequestTab[];
   activeTabId: string | null;
   requests: Record<string, ApiRequest>;
   responses: Record<string, ApiResponse>;
+  previousResponses: Record<string, ApiResponse>;
   loading: Record<string, boolean>;
   proxyMode: ProxyMode;
   cancelControllers: Record<string, AbortController>;
+  testResults: Record<string, ScriptResultData | null>;
 
   createTab: (request?: Partial<ApiRequest>) => string;
   duplicateTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
   renameTab: (tabId: string, name: string) => void;
+  updateTab: (tabId: string, updates: Partial<RequestTab>) => void;
   reorderTabs: (fromIndex: number, toIndex: number) => void;
   setActiveTab: (tabId: string) => void;
   pinTab: (tabId: string) => void;
@@ -41,6 +50,7 @@ interface RequestStore {
   setProxyMode: (mode: ProxyMode) => void;
   setCancelController: (requestId: string, controller: AbortController) => void;
   cancelRequest: (requestId: string) => void;
+  setTestResults: (requestId: string, results: ScriptResultData | null) => void;
   getActiveRequest: () => ApiRequest | null;
   getActiveResponse: () => ApiResponse | null;
 }
@@ -75,9 +85,11 @@ export const useRequestStore = create<RequestStore>()(
       activeTabId: null,
       requests: {},
       responses: {},
+      previousResponses: {},
       loading: {},
       proxyMode: "proxy" as ProxyMode,
       cancelControllers: {},
+      testResults: {},
 
       createTab: (requestOverrides) => {
         const request = createDefaultRequest(requestOverrides);
@@ -166,6 +178,11 @@ export const useRequestStore = create<RequestStore>()(
           tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, name } : t)),
         })),
 
+      updateTab: (tabId, updates) =>
+        set((state) => ({
+          tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, ...updates } : t)),
+        })),
+
       pinTab: (tabId) =>
         set((state) => ({
           tabs: state.tabs.map((t) =>
@@ -240,9 +257,13 @@ export const useRequestStore = create<RequestStore>()(
         })),
 
       setResponse: (requestId, response) =>
-        set((state) => ({
-          responses: { ...state.responses, [requestId]: response },
-        })),
+        set((state) => {
+          const old = state.responses[requestId];
+          return {
+            previousResponses: old ? { ...state.previousResponses, [requestId]: old } : state.previousResponses,
+            responses: { ...state.responses, [requestId]: response },
+          };
+        }),
 
       setLoading: (requestId, loading) =>
         set((state) => ({
@@ -262,6 +283,11 @@ export const useRequestStore = create<RequestStore>()(
           controller.abort();
         }
       },
+
+      setTestResults: (requestId, results) =>
+        set((state) => ({
+          testResults: { ...state.testResults, [requestId]: results },
+        })),
 
       getActiveRequest: () => {
         const state = get();

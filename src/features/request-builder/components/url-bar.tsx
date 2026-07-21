@@ -5,6 +5,7 @@ import type { HttpMethod } from "@/types";
 import { useRequestStore } from "@/store/request-store";
 import { useEnvironmentStore } from "@/store/environment-store";
 import { sendRequest } from "@/lib/api-engine";
+import { executeScript } from "@/lib/script-runner";
 import { importCurlCommand } from "@/lib/import-export";
 import { MethodSelector } from "@/components/method-selector";
 import { Button } from "@/components/ui/button";
@@ -111,6 +112,22 @@ export function UrlBar() {
       controller.signal.addEventListener("abort", () => clearTimeout(timeoutId), { once: true });
     }
 
+    const variables = useEnvironmentStore.getState().getActiveVariables();
+    let resolvedVars = { ...variables };
+
+    const preScript = request.preRequestScript?.trim();
+    if (preScript) {
+      const preResult = executeScript(preScript, {
+        request,
+        response: null,
+        variables: resolvedVars,
+      });
+      resolvedVars = { ...preResult.variables };
+      if (preResult.errors.length > 0) {
+        addToast(`Pre-request script errors: ${preResult.errors.join(", ")}`, "warning");
+      }
+    }
+
     try {
       const resolvedRequest = {
         ...request,
@@ -120,7 +137,7 @@ export function UrlBar() {
       const response = await sendRequest({
         request: resolvedRequest,
         proxyMode,
-        variables: useEnvironmentStore.getState().getActiveVariables(),
+        variables: resolvedVars,
         signal: controller.signal,
       });
 
@@ -137,6 +154,26 @@ export function UrlBar() {
         size: response.size,
         timestamp: response.timestamp,
       });
+
+      const testScript = request.testScript?.trim();
+      if (testScript) {
+        const testResult = executeScript(testScript, {
+          request,
+          response,
+          variables: resolvedVars,
+        });
+        useRequestStore.getState().setTestResults(request.id, {
+          logs: testResult.logs,
+          errors: testResult.errors,
+          assertions: testResult.assertions,
+        });
+        if (testResult.assertions.failed > 0) {
+          addToast(`Tests: ${testResult.assertions.passed} passed, ${testResult.assertions.failed} failed`, "warning");
+        } else if (testResult.assertions.passed > 0) {
+          addToast(`Tests: ${testResult.assertions.passed} passed`, "success");
+        }
+      }
+
       addToast(`Request completed: ${response.status} ${response.statusText}`, response.status >= 400 ? "warning" : "success");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;

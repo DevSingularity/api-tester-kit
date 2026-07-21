@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, GripVertical, ClipboardPaste } from "lucide-react";
+import { Plus, Trash2, GripVertical, ClipboardPaste, Search, X } from "lucide-react";
 import { generateId } from "@/utils";
 import type { KeyValuePair } from "@/types";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,17 @@ export function KeyValueEditor({
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState("");
+  const [filterText, setFilterText] = useState("");
+
+  const filteredItems = useMemo(() => {
+    if (!filterText.trim()) return items;
+    const lower = filterText.toLowerCase();
+    return items.filter(
+      (item) =>
+        item.key.toLowerCase().includes(lower) ||
+        item.value.toLowerCase().includes(lower)
+    );
+  }, [items, filterText]);
 
   const update = (index: number, field: keyof KeyValuePair, value: string | boolean) => {
     const newItems = [...items];
@@ -93,27 +104,48 @@ export function KeyValueEditor({
     setOverIdx(null);
   };
 
+  const displayItems = filterText.trim() ? filteredItems : items;
+
   return (
     <div className="space-y-1">
-      {items.map((item, index) => (
+      <div className="relative">
+        <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none" />
+        <Input
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          placeholder="Filter by key or value..."
+          className="h-7 text-xs font-mono pl-6 pr-7"
+        />
+        {filterText && (
+          <button
+            onClick={() => setFilterText("")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </div>
+      {displayItems.map((item) => {
+        const realIndex = items.indexOf(item);
+        return (
         <div
           key={item.id}
           className={cn(
             "flex items-center gap-1 group transition-opacity",
-            dragIdx === index && "opacity-50"
+            dragIdx === realIndex && "opacity-50"
           )}
           draggable
-          onDragStart={() => handleDragStart(index)}
-          onDragOver={(e) => handleDragOver(e, index)}
-          onDrop={() => handleDrop(index)}
+          onDragStart={() => handleDragStart(realIndex)}
+          onDragOver={(e) => handleDragOver(e, realIndex)}
+          onDrop={() => handleDrop(realIndex)}
           onDragEnd={handleDragEnd}
         >
           <button
             className={cn(
               "text-muted-foreground cursor-grab active:cursor-grabbing",
-              overIdx === index ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              overIdx === realIndex ? "opacity-100" : "opacity-0 group-hover:opacity-100"
             )}
-            onMouseDown={() => handleDragStart(index)}
+            onMouseDown={() => handleDragStart(realIndex)}
             title="Drag to reorder"
           >
             <GripVertical className="size-3.5" />
@@ -121,31 +153,32 @@ export function KeyValueEditor({
           <input
             type="checkbox"
             checked={item.enabled}
-            onChange={(e) => update(index, "enabled", e.target.checked)}
+            onChange={(e) => update(realIndex, "enabled", e.target.checked)}
             className="size-3.5 rounded border-border accent-primary shrink-0"
           />
           <Input
             value={item.key}
-            onChange={(e) => update(index, "key", e.target.value)}
+            onChange={(e) => update(realIndex, "key", e.target.value)}
             placeholder={keyPlaceholder}
             className="h-7 text-xs font-mono flex-1"
           />
           <Input
             value={item.value}
-            onChange={(e) => update(index, "value", e.target.value)}
+            onChange={(e) => update(realIndex, "value", e.target.value)}
             placeholder={valuePlaceholder}
             className="h-7 text-xs font-mono flex-1"
           />
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={() => removeItem(index)}
+            onClick={() => removeItem(realIndex)}
             className="opacity-0 group-hover:opacity-100 shrink-0"
           >
             <Trash2 className="size-3" />
           </Button>
         </div>
-      ))}
+      );
+      })}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"

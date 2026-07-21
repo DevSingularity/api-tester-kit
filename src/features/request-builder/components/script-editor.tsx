@@ -9,31 +9,24 @@ import { Play, XCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function ScriptEditor() {
-  const { getActiveRequest, getActiveResponse } = useRequestStore();
+  const { getActiveRequest, getActiveResponse, updateRequest, testResults } = useRequestStore();
   const request = getActiveRequest();
   const response = getActiveResponse();
-  const [preScript, setPreScript] = useState("");
-  const [testScript, setTestScript] = useState(
-    '// Example: expect(response.status).toBe(200)\n// expect(response.body).toBeDefined()'
-  );
-  const [scriptResults, setScriptResults] = useState<{
-    logs: string[];
-    errors: string[];
-    assertions: { passed: number; failed: number; messages: string[] };
-  } | null>(null);
+  const scriptResults = request ? testResults[request.id] : null;
 
   if (!request) return null;
 
   const handleRunTest = () => {
-    if (!testScript.trim()) return;
+    const script = request.testScript ?? "";
+    if (!script.trim()) return;
 
-    const result = executeScript(testScript, {
+    const result = executeScript(script, {
       request,
       response,
       variables: {},
     });
 
-    setScriptResults({
+    useRequestStore.getState().setTestResults(request.id, {
       logs: result.logs,
       errors: result.errors,
       assertions: result.assertions,
@@ -49,8 +42,8 @@ export function ScriptEditor() {
           </label>
         </div>
         <textarea
-          value={preScript}
-          onChange={(e) => setPreScript(e.target.value)}
+          value={request.preRequestScript ?? ""}
+          onChange={(e) => updateRequest(request.id, { preRequestScript: e.target.value })}
           placeholder="// Runs before the request is sent&#10;// Example:&#10;console.log('Preparing request...')"
           className="w-full h-28 p-2 font-mono text-xs bg-muted/50 rounded-lg border border-border resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           spellCheck={false}
@@ -74,8 +67,8 @@ export function ScriptEditor() {
           </Button>
         </div>
         <textarea
-          value={testScript}
-          onChange={(e) => setTestScript(e.target.value)}
+          value={request.testScript ?? ""}
+          onChange={(e) => updateRequest(request.id, { testScript: e.target.value })}
           placeholder="// Runs after the response is received&#10;// Example:&#10;expect(response.status).toBe(200)"
           className="w-full h-28 p-2 font-mono text-xs bg-muted/50 rounded-lg border border-border resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           spellCheck={false}

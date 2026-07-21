@@ -110,6 +110,7 @@ export interface RequestTab {
   name: string;
   isDirty: boolean;
   isPinned: boolean;
+  splitPercent?: number;
 }
 
 export interface Collection {
