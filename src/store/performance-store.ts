@@ -20,6 +20,7 @@ interface PerformanceStore {
   addEntry: (entry: Omit<PerformanceEntry, "id">) => void;
   getEntriesForEndpoint: (endpointKey: string) => PerformanceEntry[];
   getRecentEntries: (limit?: number) => PerformanceEntry[];
+  clearEndpointEntries: (endpointKey: string) => void;
   clearEntries: () => void;
 }
 
@@ -49,6 +50,12 @@ export const usePerformanceStore = create<PerformanceStore>()(
       },
 
       getRecentEntries: (limit = 10) => get().entries.slice(0, limit),
+
+      clearEndpointEntries: (endpointKey: string) => {
+        set((state) => ({
+          entries: state.entries.filter((e) => e.endpointKey !== endpointKey),
+        }));
+      },
 
       clearEntries: () => set({ entries: [] }),
     }),

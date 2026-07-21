@@ -9,12 +9,14 @@ interface UIStore {
   sidebarOpen: boolean;
   sidebarWidth: number;
   commandPaletteOpen: boolean;
+  panelSplitPercent: number;
 
   setTheme: (theme: Theme) => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
+  setPanelSplitPercent: (percent: number) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -24,6 +26,7 @@ export const useUIStore = create<UIStore>()(
       sidebarOpen: true,
       sidebarWidth: 260,
       commandPaletteOpen: false,
+      panelSplitPercent: 50,
 
       setTheme: (theme) => {
         set({ theme });
@@ -46,6 +49,7 @@ export const useUIStore = create<UIStore>()(
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       toggleCommandPalette: () =>
         set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
+      setPanelSplitPercent: (percent) => set({ panelSplitPercent: percent }),
     }),
     {
       name: "ui-store",
@@ -54,6 +58,7 @@ export const useUIStore = create<UIStore>()(
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
+        panelSplitPercent: state.panelSplitPercent,
       }),
     }
   )

@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { UrlBar } from "@/features/request-builder/components/url-bar";
 import { RequestTabs } from "@/features/request-builder/components/request-tabs";
 import { RequestPanel } from "@/features/request-builder/components/request-panel";
 import { ResponseViewer } from "@/features/response-viewer/components/response-viewer";
 import { useRequestStore } from "@/store/request-store";
+import { useUIStore } from "@/store/ui-store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
@@ -19,7 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Settings, Globe, FolderPlus, Terminal } from "lucide-react";
+import { Settings, Globe, FolderPlus, Terminal, GripVertical } from "lucide-react";
 import { EnvQuickEdit } from "@/components/env-quick-edit";
 import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,44 @@ export default function Home() {
   const { collections, addRequestToCollection } = useCollectionStore();
   const request = getActiveRequest();
   const { addToast } = useToastStore();
+  const { panelSplitPercent, setPanelSplitPercent } = useUIStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
   useKeyboardShortcuts();
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      let percent = ((e.clientX - rect.left) / rect.width) * 100;
+      percent = Math.max(20, Math.min(80, percent));
+      setPanelSplitPercent(percent);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [setPanelSplitPercent]);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      return () => {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+    }
+  }, [isDragging]);
 
   useEffect(() => {
     if (tabs.length === 0) {
@@ -157,14 +194,30 @@ export default function Home() {
 
         <RequestTabs />
 
-        <div className="flex-1 flex min-h-0">
-          <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+        <div className="flex-1 flex min-h-0" ref={containerRef}>
+          <div
+            className="flex flex-col min-w-0 border-r border-border"
+            style={{ width: `${panelSplitPercent}%` }}
+          >
             <RequestPanel />
           </div>
 
-          <Separator orientation="vertical" />
+          <div
+            className={cn(
+              "relative cursor-col-resize shrink-0 flex items-center justify-center",
+              "w-2 bg-transparent hover:bg-accent/50 group transition-colors",
+              isDragging && "bg-accent/50"
+            )}
+            onMouseDown={handleResizeStart}
+          >
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary/30 transition-colors" />
+            <GripVertical className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors relative z-10" />
+          </div>
 
-          <div className="flex-1 flex flex-col min-w-0">
+          <div
+            className="flex flex-col min-w-0"
+            style={{ width: `${100 - panelSplitPercent}%` }}
+          >
             <ResponseViewer />
           </div>
         </div>

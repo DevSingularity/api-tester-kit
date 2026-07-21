@@ -135,47 +135,6 @@ export function UrlBar() {
 
   return (
     <div className="flex flex-col flex-1 min-w-0 gap-0">
-      {editingName ? (
-        <div className="flex items-center gap-0 border-b border-border">
-          <input
-            ref={nameInputRef}
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={() => {
-              if (nameDraft.trim()) {
-                updateRequest(request.id, { name: nameDraft.trim() });
-              }
-              setEditingName(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (nameDraft.trim()) {
-                  updateRequest(request.id, { name: nameDraft.trim() });
-                }
-                setEditingName(false);
-              }
-              if (e.key === "Escape") {
-                setEditingName(false);
-              }
-            }}
-            className="h-7 px-3 text-xs font-medium bg-transparent focus:outline-none focus:ring-0 flex-1"
-            placeholder="Request name..."
-          />
-        </div>
-      ) : (
-        <div
-          className="flex items-center gap-1.5 h-7 px-3 border-b border-border cursor-pointer hover:bg-muted/50 transition-colors group"
-          onClick={() => {
-            setNameDraft(request.name);
-            setEditingName(true);
-          }}
-        >
-          <Pencil className="size-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-          <span className="text-xs font-medium text-foreground truncate">
-            {request.name || "Untitled Request"}
-          </span>
-        </div>
-      )}
       <div className="flex items-center gap-0">
         <MethodSelector
           value={request.method}

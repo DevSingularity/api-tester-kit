@@ -19,9 +19,15 @@ import {
   Gauge,
   FileJson,
   TrendingUp,
+  Save,
+  Trash2,
+  Eye,
+  Layers,
+  Table2,
+  Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { CodeGenerator } from "@/components/code-generator-panel";
 import { ResponseSearch } from "@/components/response-search";
@@ -173,6 +179,36 @@ export function ResponseViewer() {
     return { ms, barClass, label: formatDuration(ms) };
   }, [response]);
 
+  const handleSaveResponse = useCallback(() => {
+    if (!response || !request) return;
+    const blob = new Blob([response.body], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const filename = `${request.method.toLowerCase()}-${request.url.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 30)}.json`;
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast("Response saved", "success");
+  }, [response, request, addToast]);
+
+  const responseInfo = useMemo(() => {
+    if (!response) return null;
+    const h = response.headers;
+    return {
+      contentType: h["content-type"] || h["Content-Type"] || "",
+      contentLength: h["content-length"] || h["Content-Length"] || "",
+      server: h["server"] || h["Server"] || "",
+      date: h["date"] || h["Date"] || "",
+      encoding: h["content-encoding"] || h["Content-Encoding"] || "",
+    };
+  }, [response]);
+
+  const isHtml = useMemo(() => {
+    const ct = responseInfo?.contentType.toLowerCase() || "";
+    return ct.includes("text/html");
+  }, [responseInfo]);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -287,6 +323,9 @@ export function ResponseViewer() {
         <Button variant="ghost" size="icon-xs" onClick={handleDownload} title="Download response">
           <Download className="size-3" />
         </Button>
+        <Button variant="ghost" size="icon-xs" onClick={handleSaveResponse} title="Save response as file">
+          <Save className="size-3" />
+        </Button>
       </div>
 
       <Tabs defaultValue="body" className="flex-1 flex flex-col">
@@ -326,6 +365,15 @@ export function ResponseViewer() {
             >
               Code
             </TabsTrigger>
+            {isHtml && (
+              <TabsTrigger
+                value="preview"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
+              >
+                <Eye className="size-3 mr-1" />
+                Preview
+              </TabsTrigger>
+            )}
           </TabsList>
           {isJson && (
             <div className="flex items-center gap-0.5">
@@ -350,6 +398,31 @@ export function ResponseViewer() {
             </div>
           )}
         </div>
+
+        {responseInfo && (responseInfo.contentType || responseInfo.server || responseInfo.date) && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-muted/20 border-b border-border text-[10px] text-muted-foreground font-mono shrink-0">
+            {responseInfo.contentType && (
+              <span className="flex items-center gap-1 truncate max-w-[200px]" title={responseInfo.contentType}>
+                <FileText className="size-2.5 shrink-0" />
+                {responseInfo.contentType.split(";")[0]}
+              </span>
+            )}
+            {responseInfo.contentLength && (
+              <span className="shrink-0">{formatBytes(Number(responseInfo.contentLength))}</span>
+            )}
+            {responseInfo.encoding && (
+              <span className="shrink-0">{responseInfo.encoding}</span>
+            )}
+            {responseInfo.server && (
+              <span className="shrink-0 truncate max-w-[100px]" title={responseInfo.server}>
+                {responseInfo.server}
+              </span>
+            )}
+            {responseInfo.date && (
+              <span className="ml-auto shrink-0 hidden sm:inline">{responseInfo.date}</span>
+            )}
+          </div>
+        )}
 
         <TabsContent value="body" className="flex-1 m-0 overflow-auto">
           {viewMode === "preview" && isJson ? (
@@ -423,6 +496,16 @@ export function ResponseViewer() {
         <TabsContent value="code" className="flex-1 m-0 overflow-auto p-3">
           <CodeGenerator />
         </TabsContent>
+        {isHtml && (
+          <TabsContent value="preview" className="flex-1 m-0 overflow-auto">
+            <iframe
+              srcDoc={response.body}
+              sandbox="allow-same-origin"
+              className="w-full h-full border-0"
+              title="HTML Preview"
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -698,6 +781,222 @@ function PerformanceTabContent({ response, url }: { response: ApiResponse; url: 
               <div className="text-xs font-mono font-semibold mt-0.5">{formatDuration(maxTime)}</div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Waterfall Timeline */}
+      {hasBreakdown && (() => {
+        const phases: { label: string; value: number; offset: number; color: string; desc: string }[] = [];
+        let cumOffset = 0;
+        if (timing.dnsLookup && timing.dnsLookup > 0) {
+          phases.push({ label: "DNS", value: timing.dnsLookup, offset: cumOffset, color: "bg-sky-500", desc: "DNS Lookup" });
+          cumOffset += timing.dnsLookup;
+        }
+        if (timing.tcpConnect && timing.tcpConnect > 0) {
+          phases.push({ label: "TCP", value: timing.tcpConnect, offset: cumOffset, color: "bg-teal-500", desc: "TCP Connect" });
+          cumOffset += timing.tcpConnect;
+        }
+        if (timing.tlsHandshake && timing.tlsHandshake > 0) {
+          phases.push({ label: "TLS", value: timing.tlsHandshake, offset: cumOffset, color: "bg-indigo-500", desc: "TLS Handshake" });
+          cumOffset += timing.tlsHandshake;
+        }
+        if (timing.ttfb && timing.ttfb > cumOffset) {
+          phases.push({ label: "Waiting", value: timing.ttfb - cumOffset, offset: cumOffset, color: "bg-amber-500", desc: "TTFB" });
+          cumOffset = timing.ttfb;
+        }
+        if (timing.download && timing.download > 0) {
+          phases.push({ label: "Download", value: timing.download, offset: cumOffset, color: "bg-violet-500", desc: "Body Download" });
+        }
+        if (phases.length < 2) return null;
+        const waterfallTotal = phases.reduce((s, p) => s + p.value, 0) || 1;
+        return (
+          <div>
+            <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+              <Layers className="size-3" />
+              Waterfall Timeline
+            </h4>
+            <div className="bg-muted/30 rounded-lg p-3 space-y-1.5">
+              {phases.map((p) => {
+                const pctOfTotal = (p.value / waterfallTotal) * 100;
+                const offsetPct = (p.offset / response.time) * 100;
+                return (
+                  <div key={p.label} className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-muted-foreground w-10 shrink-0">{p.label}</span>
+                    <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden relative">
+                      <div
+                        className={cn("h-full rounded-full absolute top-0", p.color)}
+                        style={{ left: `${offsetPct}%`, width: `${Math.max(pctOfTotal, 1)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-foreground w-12 text-right shrink-0">{formatDuration(p.value)}</span>
+                  </div>
+                );
+              })}
+              <div className="flex items-center gap-2 pt-1 border-t border-border mt-1">
+                <span className="text-[10px] font-mono text-muted-foreground w-10 shrink-0">Total</span>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden relative">
+                  <div className="h-full rounded-full bg-foreground/60 absolute top-0 left-0 w-full" />
+                </div>
+                <span className="text-[10px] font-mono text-foreground w-12 text-right shrink-0">{formatDuration(response.time)}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Response Size History */}
+      {history.filter((e) => e.size > 0).length >= 2 && (() => {
+        const sizeHistory = history.filter((e) => e.size > 0);
+        const sizeMax = Math.max(...sizeHistory.map((e) => e.size), 1);
+        const sizePoints = sizeHistory
+          .map((e, i) => {
+            const x = (i / (sizeHistory.length - 1)) * 300;
+            const y = 76 - ((e.size / sizeMax) * 72);
+            return `${x},${y}`;
+          })
+          .join(" ");
+        return (
+          <div>
+            <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+              <BarChart3 className="size-3" />
+              Response Size History
+            </h4>
+            <div className="bg-muted/30 rounded-lg p-2">
+              <svg viewBox="0 0 300 80" className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+                <line x1={0} y1={76} x2={300} y2={76} stroke="hsl(var(--border))" strokeWidth={0.5} />
+                <polygon points={`0,76 ${sizePoints} 300,76`} fill="hsl(var(--chart-2) / 0.12)" />
+                <polyline points={sizePoints} fill="none" stroke="hsl(var(--chart-2))" strokeWidth={1.5} />
+                {sizeHistory.map((e, i) => {
+                  const x = (i / (sizeHistory.length - 1)) * 300;
+                  const y = 76 - ((e.size / sizeMax) * 72);
+                  return (
+                    <circle key={e.id} cx={x} cy={y} r={2} fill="hsl(var(--chart-2))">
+                      <title>{`${formatBytes(e.size)}`}</title>
+                    </circle>
+                  );
+                })}
+                <text x={298} y={10} className="fill-muted-foreground" fontSize={7} textAnchor="end">
+                  {formatBytes(sizeMax)}
+                </text>
+                <text x={298} y={78} className="fill-muted-foreground" fontSize={7} textAnchor="end">
+                  0 B
+                </text>
+              </svg>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+              <span>Oldest</span>
+              <span>{sizeHistory.length} responses</span>
+              <span>Newest</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Status Code Distribution */}
+      {history.length >= 2 && (() => {
+        const counts = { "2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0 };
+        for (const e of history) {
+          if (e.status >= 200 && e.status < 300) counts["2xx"]++;
+          else if (e.status >= 300 && e.status < 400) counts["3xx"]++;
+          else if (e.status >= 400 && e.status < 500) counts["4xx"]++;
+          else if (e.status >= 500) counts["5xx"]++;
+        }
+        const total = counts["2xx"] + counts["3xx"] + counts["4xx"] + counts["5xx"];
+        if (total === 0) return null;
+        const bars = [
+          { key: "2xx", count: counts["2xx"], color: "bg-emerald-500", label: "2xx Success" },
+          { key: "3xx", count: counts["3xx"], color: "bg-amber-400", label: "3xx Redirect" },
+          { key: "4xx", count: counts["4xx"], color: "bg-orange-500", label: "4xx Client Error" },
+          { key: "5xx", count: counts["5xx"], color: "bg-red-500", label: "5xx Server Error" },
+        ].filter((b) => b.count > 0);
+        return (
+          <div>
+            <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+              <Table2 className="size-3" />
+              Status Distribution
+            </h4>
+            <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+              <div className="flex h-4 rounded-full overflow-hidden">
+                {bars.map((b) => (
+                  <div
+                    key={b.key}
+                    className={b.color}
+                    style={{ width: `${(b.count / total) * 100}%` }}
+                    title={`${b.label}: ${b.count} (${Math.round((b.count / total) * 100)}%)`}
+                  />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {bars.map((b) => (
+                  <div key={b.key} className="flex items-center gap-1.5 text-[10px]">
+                    <span className={cn("size-2 rounded-sm shrink-0", b.color)} />
+                    <span className="text-muted-foreground">{b.key}</span>
+                    <span className="text-foreground font-mono">{b.count}</span>
+                    <span className="text-muted-foreground">({Math.round((b.count / total) * 100)}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Latency Overview Grid */}
+      {history.length >= 4 && (() => {
+        const gridItems = [...history].reverse();
+        return (
+          <div>
+            <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+              <Network className="size-3" />
+              Latency Overview
+            </h4>
+            <div className="bg-muted/30 rounded-lg p-2">
+              <div className="flex flex-wrap gap-0.5">
+                {gridItems.map((e) => {
+                  const t = e.time;
+                  const color =
+                    t < 200
+                      ? "bg-emerald-500"
+                      : t < 500
+                        ? "bg-amber-400"
+                        : t < 1000
+                          ? "bg-orange-500"
+                          : "bg-red-500";
+                  return (
+                    <div
+                      key={e.id}
+                      className={cn("size-3 rounded-sm", color)}
+                      title={`${e.method} ${e.status}: ${formatDuration(e.time)}`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2 mt-1.5 text-[9px] text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-emerald-500" /> &lt;200ms</span>
+                <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-amber-400" /> &lt;500ms</span>
+                <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-orange-500" /> &lt;1s</span>
+                <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-red-500" /> &ge;1s</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Data Management */}
+      {history.length > 0 && (
+        <div className="pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              usePerformanceStore.getState().clearEndpointEntries(endpointKey);
+              addToast("Performance history cleared for this endpoint", "success");
+            }}
+          >
+            <Trash2 className="size-3" />
+            Clear history
+          </Button>
         </div>
       )}
     </>
