@@ -83,6 +83,7 @@ export interface ApiRequest {
   testScript?: string;
   collectionId?: string;
   folderId?: string;
+  timeout?: number;
 }
 
 export interface ApiResponse {

@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useRequestStore } from "@/store/request-store";
 import { cn } from "@/lib/utils";
-import { X, Pin, Plus, Copy, GripVertical } from "lucide-react";
+import { X, Pin, Plus, Copy, GripVertical, XCircle, ArrowRightFromLine, XSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function RequestTabs() {
@@ -12,6 +12,7 @@ export function RequestTabs() {
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
   const dragItem = useRef<number | null>(null);
 
   const handleRename = (tabId: string) => {
@@ -45,6 +46,28 @@ export function RequestTabs() {
     setDragOverIndex(null);
   };
 
+  const closeOtherTabs = (tabId: string) => {
+    for (const t of tabs) {
+      if (t.id !== tabId) closeTab(t.id);
+    }
+    setContextMenu(null);
+  };
+
+  const closeRightTabs = (tabId: string) => {
+    const idx = tabs.findIndex((t) => t.id === tabId);
+    for (let i = tabs.length - 1; i > idx; i--) {
+      closeTab(tabs[i].id);
+    }
+    setContextMenu(null);
+  };
+
+  const closeAllTabs = () => {
+    for (const t of tabs) {
+      closeTab(t.id);
+    }
+    setContextMenu(null);
+  };
+
   return (
     <div className="flex items-center border-b border-border bg-background overflow-x-auto">
       <div className="flex items-center">
@@ -66,6 +89,10 @@ export function RequestTabs() {
             onDoubleClick={() => {
               setEditingTabId(tab.id);
               setEditingName(tab.name);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu({ x: e.clientX, y: e.clientY, tabId: tab.id });
             }}
           >
             <GripVertical className="size-2.5 text-muted-foreground opacity-0 group-hover:opacity-40 shrink-0 transition-opacity cursor-grab active:cursor-grabbing" />
@@ -125,6 +152,46 @@ export function RequestTabs() {
       >
         <Plus className="size-3.5" />
       </Button>
+
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)} />
+          <div
+            className="fixed z-50 min-w-40 rounded-lg border border-border bg-popover shadow-lg py-1"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+              onClick={() => { closeTab(contextMenu.tabId); setContextMenu(null); }}
+            >
+              <X className="size-3 text-muted-foreground" />
+              Close
+            </button>
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+              onClick={() => closeOtherTabs(contextMenu.tabId)}
+            >
+              <XCircle className="size-3 text-muted-foreground" />
+              Close Others
+            </button>
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+              onClick={() => closeRightTabs(contextMenu.tabId)}
+            >
+              <ArrowRightFromLine className="size-3 text-muted-foreground" />
+              Close Right
+            </button>
+            <div className="h-px bg-border my-1" />
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+              onClick={closeAllTabs}
+            >
+              <XSquare className="size-3 text-muted-foreground" />
+              Close All
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

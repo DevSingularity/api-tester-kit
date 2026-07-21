@@ -204,10 +204,14 @@ export function ResponseViewer() {
     };
   }, [response]);
 
-  const isHtml = useMemo(() => {
+  const isPreviewable = useMemo(() => {
     const ct = responseInfo?.contentType.toLowerCase() || "";
-    return ct.includes("text/html");
-  }, [responseInfo]);
+    const body = response?.body || "";
+    if (ct.includes("text/html")) return "html";
+    if (ct.includes("image/svg+xml") || body.trim().startsWith("<svg")) return "svg";
+    if (body.trim().startsWith("data:image")) return "image";
+    return null;
+  }, [responseInfo, response]);
 
   if (isLoading) {
     return (
@@ -365,7 +369,7 @@ export function ResponseViewer() {
             >
               Code
             </TabsTrigger>
-            {isHtml && (
+            {isPreviewable && (
               <TabsTrigger
                 value="preview"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
@@ -496,14 +500,29 @@ export function ResponseViewer() {
         <TabsContent value="code" className="flex-1 m-0 overflow-auto p-3">
           <CodeGenerator />
         </TabsContent>
-        {isHtml && (
+        {isPreviewable && (
           <TabsContent value="preview" className="flex-1 m-0 overflow-auto">
-            <iframe
-              srcDoc={response.body}
-              sandbox="allow-same-origin"
-              className="w-full h-full border-0"
-              title="HTML Preview"
-            />
+            {isPreviewable === "html" ? (
+              <iframe
+                srcDoc={response.body}
+                sandbox="allow-same-origin"
+                className="w-full h-full border-0"
+                title="HTML Preview"
+              />
+            ) : isPreviewable === "svg" ? (
+              <div
+                className="w-full h-full p-4 flex items-center justify-center bg-white"
+                dangerouslySetInnerHTML={{ __html: response.body }}
+              />
+            ) : (
+              <div className="w-full h-full p-4 flex items-center justify-center">
+                <img
+                  src={response.body}
+                  alt="Response preview"
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
           </TabsContent>
         )}
       </Tabs>

@@ -9,10 +9,19 @@ import { importCurlCommand } from "@/lib/import-export";
 import { MethodSelector } from "@/components/method-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Square, Pencil } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Send, Square, Pencil, Timer } from "lucide-react";
 import { useHistoryStore } from "@/store/history-store";
 import { useToastStore } from "@/store/toast-store";
 import { usePerformanceStore, normalizeEndpoint } from "@/store/performance-store";
+import { UrlAutocomplete } from "@/components/url-autocomplete";
+import { VariablePicker } from "@/components/variable-picker";
 
 export function UrlBar() {
   const {
@@ -80,12 +89,27 @@ export function UrlBar() {
 
   const isLoading = loading[request.id];
 
+  const TIMEOUT_OPTIONS = [
+    { label: "No timeout", value: 0 },
+    { label: "5s", value: 5000 },
+    { label: "10s", value: 10000 },
+    { label: "30s", value: 30000 },
+    { label: "60s", value: 60000 },
+  ] as const;
+
+  const currentTimeout = request.timeout ?? 0;
+
   const handleSend = async () => {
     if (!request.url) return;
 
     const controller = new AbortController();
     setCancelController(request.id, controller);
     setLoading(request.id, true);
+
+    if (currentTimeout > 0) {
+      const timeoutId = setTimeout(() => controller.abort(), currentTimeout);
+      controller.signal.addEventListener("abort", () => clearTimeout(timeoutId), { once: true });
+    }
 
     try {
       const resolvedRequest = {
@@ -140,13 +164,46 @@ export function UrlBar() {
           value={request.method}
           onChange={(method: HttpMethod) => updateMethod(request.id, method)}
         />
-        <Input
-          ref={(el) => { if (el && !request.url) setTimeout(() => el.focus(), 50); }}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(
+              "inline-flex items-center justify-center h-9 px-1.5",
+              "text-muted-foreground hover:text-foreground border-y border-border",
+              "cursor-pointer",
+              currentTimeout > 0 && "text-amber-400"
+            )}
+            title={`Timeout: ${currentTimeout > 0 ? `${currentTimeout / 1000}s` : "None"}`}
+          >
+            <Timer className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-32">
+            {TIMEOUT_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                onClick={() => updateRequest(request.id, { timeout: opt.value })}
+                className={cn("text-xs", currentTimeout === opt.value && "text-primary font-medium")}
+              >
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <UrlAutocomplete
           value={request.url}
-          onChange={(e) => updateUrl(request.id, e.target.value)}
-          onPaste={handlePaste}
-          placeholder="Enter URL or paste cURL"
-          className="h-9 rounded-none border-l-0 border-r-0 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+          onChange={(url) => updateUrl(request.id, url)}
+          className="flex-1"
+        >
+          <Input
+            ref={(el) => { if (el && !request.url) setTimeout(() => el.focus(), 50); }}
+            value={request.url}
+            onChange={(e) => updateUrl(request.id, e.target.value)}
+            onPaste={handlePaste}
+            placeholder="Enter URL or paste cURL"
+            className="h-9 rounded-none border-l-0 border-r-0 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+        </UrlAutocomplete>
+        <VariablePicker
+          onSelect={(key) => updateUrl(request.id, request.url + `{{${key}}}`)}
         />
         {isLoading ? (
           <Button

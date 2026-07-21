@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRequestStore } from "@/store/request-store";
 import { useUIStore } from "@/store/ui-store";
+import { useHistoryStore } from "@/store/history-store";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,14 @@ import {
   History,
   Moon,
   Sun,
+  Webhook,
+  Database,
+  Play,
+  PanelLeft,
+  Copy,
+  Trash2,
+  Wifi,
+  Zap,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
@@ -29,8 +38,9 @@ interface CommandItem {
 }
 
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen } = useUIStore();
-  const { createTab } = useRequestStore();
+  const { commandPaletteOpen, setCommandPaletteOpen, toggleSidebar } = useUIStore();
+  const { createTab, duplicateTab, proxyMode, setProxyMode } = useRequestStore();
+  const { clearHistory } = useHistoryStore();
   const { theme, setTheme } = useTheme();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -43,6 +53,20 @@ export function CommandPalette() {
         icon: <Plus className="size-4" />,
         action: () => {
           createTab();
+          setCommandPaletteOpen(false);
+        },
+        category: "General",
+      },
+      {
+        id: "duplicate-tab",
+        label: "Duplicate Tab",
+        icon: <Copy className="size-4" />,
+        action: () => {
+          const state = useRequestStore.getState();
+          const activeTab = state.activeTabId;
+          if (activeTab) {
+            duplicateTab(activeTab);
+          }
           setCommandPaletteOpen(false);
         },
         category: "General",
@@ -75,6 +99,42 @@ export function CommandPalette() {
         category: "Navigation",
       },
       {
+        id: "graphql",
+        label: "Go to GraphQL",
+        icon: <Zap className="size-4" />,
+        action: () => {
+          window.location.href = "/graphql";
+        },
+        category: "Navigation",
+      },
+      {
+        id: "websocket",
+        label: "Go to WebSocket",
+        icon: <Wifi className="size-4" />,
+        action: () => {
+          window.location.href = "/websocket";
+        },
+        category: "Navigation",
+      },
+      {
+        id: "grpc",
+        label: "Go to gRPC",
+        icon: <Database className="size-4" />,
+        action: () => {
+          window.location.href = "/grpc";
+        },
+        category: "Navigation",
+      },
+      {
+        id: "runner",
+        label: "Go to Runner",
+        icon: <Play className="size-4" />,
+        action: () => {
+          window.location.href = "/runner";
+        },
+        category: "Navigation",
+      },
+      {
         id: "settings",
         label: "Go to Settings",
         icon: <Settings className="size-4" />,
@@ -93,8 +153,40 @@ export function CommandPalette() {
         },
         category: "Preferences",
       },
+      {
+        id: "toggle-sidebar",
+        label: "Toggle Sidebar",
+        icon: <PanelLeft className="size-4" />,
+        action: () => {
+          toggleSidebar();
+          setCommandPaletteOpen(false);
+        },
+        category: "Preferences",
+      },
+      {
+        id: "toggle-proxy",
+        label: `Proxy: ${proxyMode === "proxy" ? "Proxy" : proxyMode === "direct" ? "Direct" : "Auto"}`,
+        icon: <Wifi className="size-4" />,
+        action: () => {
+          const modes = ["proxy", "direct", "auto"] as const;
+          const idx = modes.indexOf(proxyMode);
+          setProxyMode(modes[(idx + 1) % modes.length]);
+          setCommandPaletteOpen(false);
+        },
+        category: "Preferences",
+      },
+      {
+        id: "clear-history",
+        label: "Clear History",
+        icon: <Trash2 className="size-4" />,
+        action: () => {
+          clearHistory();
+          setCommandPaletteOpen(false);
+        },
+        category: "General",
+      },
     ],
-    [createTab, setCommandPaletteOpen, theme, setTheme]
+    [createTab, duplicateTab, setCommandPaletteOpen, theme, setTheme, toggleSidebar, proxyMode, setProxyMode, clearHistory]
   );
 
   const filtered = useMemo(() => {

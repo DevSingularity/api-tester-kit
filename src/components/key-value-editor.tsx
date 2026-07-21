@@ -3,7 +3,8 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, Trash2, GripVertical, ClipboardPaste } from "lucide-react";
 import { generateId } from "@/utils";
 import type { KeyValuePair } from "@/types";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,8 @@ export function KeyValueEditor({
 }: KeyValueEditorProps) {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [bulkText, setBulkText] = useState("");
 
   const update = (index: number, field: keyof KeyValuePair, value: string | boolean) => {
     const newItems = [...items];
@@ -38,6 +41,28 @@ export function KeyValueEditor({
 
   const removeItem = (index: number) => {
     onChange(items.filter((_, i) => i !== index));
+  };
+
+  const handleBulkPaste = () => {
+    const lines = bulkText.split("\n").filter((l) => l.trim());
+    const parsed: KeyValuePair[] = [];
+    for (const line of lines) {
+      const sep = line.includes(":") ? ":" : line.includes("=") ? "=" : "\t";
+      const idx = line.indexOf(sep);
+      if (idx > 0) {
+        parsed.push({
+          id: generateId(),
+          key: line.slice(0, idx).trim(),
+          value: line.slice(idx + 1).trim(),
+          enabled: true,
+        });
+      }
+    }
+    if (parsed.length > 0) {
+      onChange([...items, ...parsed]);
+    }
+    setBulkText("");
+    setShowBulkPaste(false);
   };
 
   const handleDragStart = (index: number) => {
@@ -121,15 +146,45 @@ export function KeyValueEditor({
           </Button>
         </div>
       ))}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={addItem}
-        className="gap-1 text-xs text-muted-foreground"
-      >
-        <Plus className="size-3" />
-        {addLabel}
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={addItem}
+          className="gap-1 text-xs text-muted-foreground"
+        >
+          <Plus className="size-3" />
+          {addLabel}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowBulkPaste(!showBulkPaste)}
+          className="gap-1 text-xs text-muted-foreground"
+        >
+          <ClipboardPaste className="size-3" />
+          Bulk Paste
+        </Button>
+      </div>
+      {showBulkPaste && (
+        <div className="space-y-2 p-2 bg-muted/30 rounded-lg border border-border">
+          <Textarea
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+            placeholder="Paste Key: Value pairs, one per line&#10;Lines can use :, =, or Tab as separator"
+            className="h-24 text-xs font-mono resize-none"
+            spellCheck={false}
+          />
+          <div className="flex gap-2">
+            <Button variant="default" size="sm" className="h-7 text-xs" onClick={handleBulkPaste}>
+              Apply
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setShowBulkPaste(false); setBulkText(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

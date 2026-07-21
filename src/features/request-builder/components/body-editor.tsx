@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { VariablePicker } from "@/components/variable-picker";
 import { Plus, Trash2, FileUp } from "lucide-react";
 import type { BodyType, KeyValuePair } from "@/types";
 import { generateId } from "@/utils";
@@ -293,6 +294,14 @@ export function BodyEditor() {
 
       {bodyType !== "none" && (bodyType === "json" || bodyType === "xml" || bodyType === "text" || bodyType === "html") && (
         <div className="relative">
+          <div className="flex items-center justify-end mb-1">
+            <VariablePicker
+              onSelect={(key) => {
+                const current = request.body.raw ?? "";
+                updateBody(request.id, bodyType, current + `{{${key}}}`);
+              }}
+            />
+          </div>
           <textarea
             value={request.body.raw ?? ""}
             onChange={(e) => updateBody(request.id, bodyType, e.target.value)}
