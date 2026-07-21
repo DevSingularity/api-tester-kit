@@ -19,11 +19,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Settings, Globe, FolderPlus } from "lucide-react";
+import { Settings, Globe, FolderPlus, Terminal } from "lucide-react";
 import { EnvQuickEdit } from "@/components/env-quick-edit";
 import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { cn } from "@/lib/utils";
 import { useCollectionStore } from "@/store/collection-store";
+import { useToastStore } from "@/store/toast-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,7 @@ export default function Home() {
   const { createTab, tabs, getActiveRequest } = useRequestStore();
   const { collections, addRequestToCollection } = useCollectionStore();
   const request = getActiveRequest();
+  const { addToast } = useToastStore();
   useKeyboardShortcuts();
 
   useEffect(() => {
@@ -70,7 +72,10 @@ export default function Home() {
                       {collections.map((c) => (
                         <DropdownMenuItem
                           key={c.id}
-                          onClick={() => addRequestToCollection(c.id, request)}
+                          onClick={() => {
+                            addRequestToCollection(c.id, request);
+                            addToast(`Request saved to "${c.name}"`, "success");
+                          }}
                         >
                           {c.name}
                         </DropdownMenuItem>
@@ -82,6 +87,33 @@ export default function Home() {
                   </DropdownMenu>
                 </TooltipTrigger>
                 <TooltipContent>Add to Collection</TooltipContent>
+              </Tooltip>
+            )}
+            {request && request.url && (
+              <Tooltip>
+                <TooltipTrigger
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-md p-1.5",
+                    "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    "cursor-pointer"
+                  )}
+                  onClick={() => {
+                    const headers = request.headers
+                      .filter((h) => h.enabled && h.key)
+                      .map((h) => `-H '${h.key}: ${h.value}'`)
+                      .join(" ");
+                    const body =
+                      request.body.raw && request.body.type !== "none"
+                        ? ` -d '${request.body.raw.replace(/'/g, "\\'")}'`
+                        : "";
+                    const curl = `curl -X ${request.method} ${headers} '${request.url}'${body}`;
+                    navigator.clipboard.writeText(curl);
+                    addToast("Request copied as cURL", "success");
+                  }}
+                >
+                  <Terminal className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Copy as cURL</TooltipContent>
               </Tooltip>
             )}
             <Tooltip>

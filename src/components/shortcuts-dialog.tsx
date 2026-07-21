@@ -10,12 +10,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { Keyboard } from "lucide-react";
 
-const shortcuts = [
-  { keys: ["Ctrl", "Enter"], description: "Send request" },
-  { keys: ["Ctrl", "N"], description: "New request tab" },
-  { keys: ["Ctrl", "K"], description: "Command palette" },
-  { keys: ["?", ""], description: "Show this dialog" },
-  { keys: ["Ctrl", "S"], description: "Save (auto-persisted)" },
+const shortcutGroups = [
+  {
+    title: "Requests",
+    shortcuts: [
+      { keys: ["Ctrl", "Enter"], description: "Send active request" },
+      { keys: ["Ctrl", "N"], description: "New request tab" },
+      { keys: ["Ctrl", "W"], description: "Close current tab" },
+      { keys: ["Ctrl", "Tab"], description: "Next tab" },
+      { keys: ["Ctrl", "Shift", "Tab"], description: "Previous tab" },
+    ],
+  },
+  {
+    title: "Navigation",
+    shortcuts: [
+      { keys: ["Ctrl", "K"], description: "Command palette" },
+      { keys: ["?"], description: "Keyboard shortcuts" },
+    ],
+  },
+  {
+    title: "General",
+    shortcuts: [
+      { keys: ["Ctrl", "S"], description: "Save (auto-persisted)" },
+      { keys: ["Ctrl", "B"], description: "Toggle sidebar" },
+    ],
+  },
 ];
 
 export function ShortcutsDialog() {
@@ -56,20 +75,32 @@ export function ShortcutsDialog() {
               Keyboard Shortcuts
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            {shortcuts.map((s) => (
-              <div key={s.description} className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{s.description}</span>
-                <div className="flex items-center gap-1">
-                  {s.keys.filter(Boolean).map((key, i) => (
-                    <span key={i}>
-                      <kbd className="inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded border border-border bg-muted text-[10px] font-mono font-medium">
-                        {key}
-                      </kbd>
-                      {i < s.keys.filter(Boolean).length - 1 && (
-                        <span className="text-muted-foreground mx-0.5">+</span>
-                      )}
-                    </span>
+          <div className="space-y-4">
+            {shortcutGroups.map((group) => (
+              <div key={group.title}>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  {group.title}
+                </h3>
+                <div className="space-y-1.5">
+                  {group.shortcuts.map((s) => (
+                    <div
+                      key={s.description}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="text-muted-foreground">{s.description}</span>
+                      <div className="flex items-center gap-1">
+                        {s.keys.filter(Boolean).map((key, i) => (
+                          <span key={key}>
+                            <kbd className="inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded border border-border bg-muted text-[10px] font-mono font-medium">
+                              {key}
+                            </kbd>
+                            {i < s.keys.filter(Boolean).length - 1 && (
+                              <span className="text-muted-foreground mx-0.5">+</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

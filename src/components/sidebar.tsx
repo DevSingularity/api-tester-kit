@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useRequestStore } from "@/store/request-store";
 import { useUIStore } from "@/store/ui-store";
 import {
@@ -39,9 +40,10 @@ const navItems = [
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
   const { tabs, activeTabId, setActiveTab, createTab, closeTab } =
     useRequestStore();
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { sidebarOpen, toggleSidebar, toggleCommandPalette } = useUIStore();
 
   return (
     <div
@@ -88,30 +90,44 @@ export function Sidebar() {
                 </TooltipTrigger>
                 <TooltipContent side="right">New Request (Ctrl+N)</TooltipContent>
               </Tooltip>
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-2 text-sidebar-foreground"
-                size="sm"
-              >
-                <Search className="size-4" />
-                Search
-              </Button>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2 text-sidebar-foreground"
+                    size="sm"
+                    onClick={toggleCommandPalette}
+                  >
+                    <Search className="size-4" />
+                    Search
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Search (Ctrl+K)</TooltipContent>
+              </Tooltip>
               <DiffDialog />
             </div>
 
             <Separator />
 
             <nav className="p-2 space-y-0.5">
-              {navItems.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
-                </a>
-              ))}
+              {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                    )}
+                  >
+                    <item.icon className="size-4 shrink-0" />
+                    {item.label}
+                  </a>
+                );
+              })}
             </nav>
 
             <Separator />
@@ -121,27 +137,33 @@ export function Sidebar() {
                 <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Open Tabs
                 </p>
-                {tabs.map((tab) => (
-                  <div
-                    key={tab.id}
-                    className={cn(
-                      "group flex items-center gap-1 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-sidebar-accent",
-                      activeTabId === tab.id && "bg-sidebar-accent"
-                    )}
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    <span className="truncate flex-1">{tab.name}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeTab(tab.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                {tabs.length === 0 ? (
+                  <p className="px-2 py-1 text-xs text-muted-foreground">
+                    No open tabs
+                  </p>
+                ) : (
+                  tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className={cn(
+                        "group flex items-center gap-1 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-sidebar-accent",
+                        activeTabId === tab.id && "bg-sidebar-accent"
+                      )}
+                      onClick={() => setActiveTab(tab.id)}
                     >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                      <span className="truncate flex-1">{tab.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeTab(tab.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </ScrollArea>
           </>

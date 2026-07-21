@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCollectionStore } from "@/store/collection-store";
+import { useRequestStore } from "@/store/request-store";
 import { Sidebar } from "@/components/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,24 @@ import { ImportExportDialog } from "@/components/import-export-dialog";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import { useToastStore } from "@/store/toast-store";
 import { EmptyState } from "@/components/empty-state";
-import { Plus, FolderOpen, Trash2, Edit2, Upload, Download } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  FolderOpen,
+  Trash2,
+  Edit2,
+  Upload,
+  Download,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
+import { METHOD_COLORS } from "@/utils";
+import type { HttpMethod } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -18,10 +36,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 export default function CollectionsPage() {
   const { collections, createCollection, deleteCollection, renameCollection } =
     useCollectionStore();
+  const { createTab } = useRequestStore();
   const { addToast } = useToastStore();
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -30,6 +50,16 @@ export default function CollectionsPage() {
   const [editName, setEditName] = useState("");
   const [importExportOpen, setImportExportOpen] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedCollections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleCreate = () => {
     if (newName.trim()) {
@@ -60,6 +90,16 @@ export default function CollectionsPage() {
         addToast(`Collection "${name}" deleted`, "success");
       },
     });
+  };
+
+  const handleOpenRequest = (request: { id: string; name: string; method: string; url: string }) => {
+    createTab({
+      id: request.id,
+      name: request.name,
+      method: request.method as HttpMethod,
+      url: request.url,
+    });
+    addToast(`Opened "${request.name}"`, "info");
   };
 
   const activeCollection = collections.find((c) => c.id === selectedCollection);
@@ -106,58 +146,104 @@ export default function CollectionsPage() {
           ) : (
             <div className="space-y-2">
               {collections.map((collection) => (
-                <div
+                <Collapsible
                   key={collection.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                  open={expandedCollections.has(collection.id)}
+                  onOpenChange={() => toggleExpanded(collection.id)}
+                  className="rounded-lg border border-border"
                 >
-                  <div className="flex items-center gap-2">
-                    <FolderOpen className="size-4 text-muted-foreground" />
-                    {editingId === collection.id ? (
-                      <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onBlur={handleRename}
-                        onKeyDown={(e) => e.key === "Enter" && handleRename()}
-                        className="h-6 text-sm w-48"
-                        autoFocus
-                      />
+                  <div className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors">
+                    <CollapsibleTrigger className="flex items-center gap-2 flex-1 min-w-0">
+                      {expandedCollections.has(collection.id) ? (
+                        <ChevronDown className="size-4 text-muted-foreground shrink-0" />
+                      ) : (
+                        <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+                      )}
+                      <FolderOpen className="size-4 text-muted-foreground shrink-0" />
+                      {editingId === collection.id ? (
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onBlur={handleRename}
+                          onKeyDown={(e) => e.key === "Enter" && handleRename()}
+                          className="h-6 text-sm w-48"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-sm font-medium truncate">{collection.name}</span>
+                      )}
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                        {collection.requests.length}
+                      </Badge>
+                    </CollapsibleTrigger>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCollection(collection.id);
+                          setImportExportOpen(true);
+                        }}
+                      >
+                        <Download className="size-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(collection.id);
+                          setEditName(collection.name);
+                        }}
+                      >
+                        <Edit2 className="size-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(collection.id, collection.name);
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <CollapsibleContent>
+                    {collection.requests.length === 0 ? (
+                      <div className="px-10 pb-3 text-xs text-muted-foreground">
+                        No requests in this collection. Add requests from the request page.
+                      </div>
                     ) : (
-                      <span className="text-sm font-medium">{collection.name}</span>
+                      <div className="pb-2 px-2 space-y-0.5">
+                        {collection.requests.map((req) => (
+                          <div
+                            key={req.id}
+                            className="group flex items-center gap-2 px-3 py-1.5 rounded-md text-xs hover:bg-muted cursor-pointer transition-colors"
+                            onClick={() => handleOpenRequest(req)}
+                          >
+                            <span
+                              className={cn(
+                                "font-mono font-semibold text-[10px] uppercase w-12 shrink-0",
+                                METHOD_COLORS[req.method as HttpMethod] || ""
+                              )}
+                            >
+                              {req.method}
+                            </span>
+                            <span className="truncate flex-1">{req.name}</span>
+                            <span className="truncate text-muted-foreground max-w-[200px] hidden sm:block">
+                              {req.url}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                    <span className="text-xs text-muted-foreground">
-                      {collection.requests.length} requests
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => {
-                        setSelectedCollection(collection.id);
-                        setImportExportOpen(true);
-                      }}
-                    >
-                      <Download className="size-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => {
-                        setEditingId(collection.id);
-                        setEditName(collection.name);
-                      }}
-                    >
-                      <Edit2 className="size-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => handleDelete(collection.id, collection.name)}
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </div>
-                </div>
+                  </CollapsibleContent>
+                </Collapsible>
               ))}
             </div>
           )}

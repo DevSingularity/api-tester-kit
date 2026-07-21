@@ -26,6 +26,7 @@ interface RequestStore {
   duplicateTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
   renameTab: (tabId: string, name: string) => void;
+  reorderTabs: (fromIndex: number, toIndex: number) => void;
   setActiveTab: (tabId: string) => void;
   pinTab: (tabId: string) => void;
   updateRequest: (requestId: string, updates: Partial<ApiRequest>) => void;
@@ -151,6 +152,14 @@ export const useRequestStore = create<RequestStore>()(
       },
 
       setActiveTab: (tabId) => set({ activeTabId: tabId }),
+
+      reorderTabs: (fromIndex, toIndex) =>
+        set((state) => {
+          const newTabs = [...state.tabs];
+          const [moved] = newTabs.splice(fromIndex, 1);
+          newTabs.splice(toIndex, 0, moved);
+          return { tabs: newTabs };
+        }),
 
       renameTab: (tabId, name) =>
         set((state) => ({
