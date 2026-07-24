@@ -4,7 +4,7 @@ import { useRef, useEffect, useState } from "react";
 import type { HttpMethod } from "@/types";
 import { useRequestStore } from "@/store/request-store";
 import { useEnvironmentStore } from "@/store/environment-store";
-import { sendRequest } from "@/lib/api-engine";
+import { sendRequest, sendStreamingRequest } from "@/lib/api-engine";
 import { executeScript } from "@/lib/script-runner";
 import { importCurlCommand } from "@/lib/import-export";
 import { MethodSelector } from "@/components/method-selector";
@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Send, Square, Pencil, Timer } from "lucide-react";
+import { Send, Square, Pencil, Timer, Radio } from "lucide-react";
 import { useHistoryStore } from "@/store/history-store";
 import { useToastStore } from "@/store/toast-store";
 import { usePerformanceStore, normalizeEndpoint } from "@/store/performance-store";
@@ -36,6 +36,9 @@ export function UrlBar() {
     proxyMode,
     cancelRequest,
     setCancelController,
+    appendStreamChunk,
+    resetStreaming,
+    stopStreaming,
   } = useRequestStore();
   const { resolveVariables } = useEnvironmentStore();
   const { addEntry } = useHistoryStore();
@@ -86,6 +89,17 @@ export function UrlBar() {
     }
   }, [editingName]);
 
+  useEffect(() => {
+    if (!request) return;
+    const hasAcceptEventStream = request.headers.some(
+      (h) => h.enabled && h.key.toLowerCase() === "accept" && h.value.toLowerCase().includes("text/event-stream")
+    );
+    const isSseUrl = /\/events?$|\/sse$|\/stream$|\/subscribe$/i.test(request.url);
+    if (!request.stream && (isSseUrl || hasAcceptEventStream)) {
+      updateRequest(request.id, { stream: true });
+    }
+  }, [request?.url, request?.headers]);
+
   if (!request) return null;
 
   const isLoading = loading[request.id];
@@ -134,13 +148,32 @@ export function UrlBar() {
         url: resolveVariables(request.url),
       };
 
-      const response = await sendRequest({
-        request: resolvedRequest,
-        proxyMode,
-        variables: resolvedVars,
-        signal: controller.signal,
-      });
+      let response: import("@/types").ApiResponse;
 
+      if (request.stream) {
+        resetStreaming(request.id);
+        response = await sendStreamingRequest({
+          request: resolvedRequest,
+          proxyMode,
+          variables: resolvedVars,
+          signal: controller.signal,
+          onResponseInit: (status, statusText, headers) => {
+            setResponse(request.id, { status, statusText, headers, body: "", time: 0, size: 0, timestamp: new Date().toISOString() });
+          },
+          onChunk: (chunk) => {
+            appendStreamChunk(request.id, chunk);
+          },
+        });
+      } else {
+        response = await sendRequest({
+          request: resolvedRequest,
+          proxyMode,
+          variables: resolvedVars,
+          signal: controller.signal,
+        });
+      }
+
+      stopStreaming(request.id);
       setResponse(request.id, response);
       addEntry({ request, response });
       usePerformanceStore.getState().addEntry({
@@ -176,6 +209,7 @@ export function UrlBar() {
 
       addToast(`Request completed: ${response.status} ${response.statusText}`, response.status >= 400 ? "warning" : "success");
     } catch (error) {
+      stopStreaming(request.id);
       if (error instanceof DOMException && error.name === "AbortError") return;
       const errorMessage =
         error instanceof Error ? error.message : "Request failed";
@@ -242,6 +276,17 @@ export function UrlBar() {
         <VariablePicker
           onSelect={(key) => updateUrl(request.id, request.url + `{{${key}}}`)}
         />
+        <button
+          onClick={() => updateRequest(request.id, { stream: !request.stream })}
+          className={cn(
+            "inline-flex items-center justify-center h-9 px-2 border-y border-border text-xs gap-1",
+            "text-muted-foreground hover:text-foreground cursor-pointer",
+            request.stream && "text-primary"
+          )}
+          title={request.stream ? "Streaming enabled" : "Streaming disabled"}
+        >
+          <Radio className={cn("size-3.5", request.stream && "animate-pulse")} />
+        </button>
         {isLoading ? (
           <Button
             size="sm"

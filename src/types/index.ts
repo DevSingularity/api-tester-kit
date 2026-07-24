@@ -84,6 +84,7 @@ export interface ApiRequest {
   collectionId?: string;
   folderId?: string;
   timeout?: number;
+  stream?: boolean;
 }
 
 export interface ApiResponse {

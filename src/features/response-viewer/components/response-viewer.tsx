@@ -25,9 +25,10 @@ import {
   Layers,
   Table2,
   Network,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { CodeGenerator } from "@/components/code-generator-panel";
 import { ResponseDiff } from "@/components/response-diff";
@@ -130,10 +131,13 @@ function parseServerTiming(header: string): ServerTimingEntry[] {
 }
 
 export function ResponseViewer() {
-  const { getActiveResponse, loading, getActiveRequest, previousResponses } = useRequestStore();
+  const { getActiveResponse, loading, getActiveRequest, previousResponses, streamingBody, isStreaming } = useRequestStore();
   const response = getActiveResponse();
   const request = getActiveRequest();
   const isLoading = request ? loading[request.id] : false;
+  const isStreamingActive = request ? isStreaming[request.id] ?? false : false;
+  const streamedBody = request ? streamingBody[request.id] ?? "" : "";
+  const displayBody = isStreamingActive && streamedBody ? streamedBody : response?.body ?? "";
   const previousResponse = request && response ? previousResponses[request.id] : undefined;
   const { addToast } = useToastStore();
   const downloadCounter = useRef(0);
@@ -143,13 +147,69 @@ export function ResponseViewer() {
 
   const isJson = useMemo(() => {
     if (!response) return false;
+    if (isStreamingActive) return false;
     try {
       JSON.parse(response.body);
       return true;
     } catch {
       return false;
     }
-  }, [response]);
+  }, [response, isStreamingActive]);
+
+  const [autoScroll, setAutoScroll] = useState(true);
+  const bodyRef = useRef<HTMLPreElement>(null);
+  const streamStartTime = useRef<number | null>(null);
+  const [streamElapsed, setStreamElapsed] = useState(0);
+  const [streamBytesCount, setStreamBytesCount] = useState(0);
+
+  useEffect(() => {
+    if (isStreamingActive) {
+      streamStartTime.current = streamStartTime.current ?? Date.now();
+      setStreamElapsed(0);
+      setStreamBytesCount(0);
+      const interval = setInterval(() => {
+        setStreamElapsed(Date.now() - (streamStartTime.current ?? Date.now()));
+      }, 200);
+      return () => clearInterval(interval);
+    } else {
+      streamStartTime.current = null;
+      setStreamElapsed(0);
+    }
+  }, [isStreamingActive]);
+
+  useEffect(() => {
+    if (streamedBody) {
+      setStreamBytesCount(new Blob([streamedBody]).size);
+    }
+  }, [streamedBody]);
+
+  useEffect(() => {
+    if (autoScroll && bodyRef.current && isStreamingActive) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
+  }, [streamedBody, autoScroll, isStreamingActive]);
+
+  const sseEvents = useMemo(() => {
+    if (!isStreamingActive || !response) return null;
+    const ct = response.headers?.["content-type"] || response.headers?.["Content-Type"] || "";
+    if (!ct.includes("text/event-stream")) return null;
+    const events: { id?: string; event?: string; data: string; retry?: number }[] = [];
+    const current: { id?: string; event?: string; data: string[]; retry?: number } = { data: [] };
+    for (const line of displayBody.split("\n")) {
+      if (line.startsWith("id:")) current.id = line.slice(3).trim();
+      else if (line.startsWith("event:")) current.event = line.slice(6).trim();
+      else if (line.startsWith("data:")) current.data.push(line.slice(5).trim());
+      else if (line.startsWith("retry:")) current.retry = parseInt(line.slice(6).trim(), 10);
+      else if (line === "" && current.data.length > 0) {
+        events.push({ id: current.id, event: current.event, data: current.data.join("\n"), retry: current.retry });
+        current.id = undefined;
+        current.event = undefined;
+        current.data = [];
+        current.retry = undefined;
+      }
+    }
+    return events.length > 0 ? events : null;
+  }, [displayBody, isStreamingActive, response]);
 
   const filteredHeaders = useMemo(() => {
     if (!response) return [];
@@ -183,7 +243,8 @@ export function ResponseViewer() {
 
   const handleSaveResponse = useCallback(() => {
     if (!response || !request) return;
-    const blob = new Blob([response.body], { type: "application/json" });
+    const body = isStreamingActive ? displayBody : response.body;
+    const blob = new Blob([body], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const filename = `${request.method.toLowerCase()}-${request.url.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 30)}.json`;
@@ -207,15 +268,17 @@ export function ResponseViewer() {
   }, [response]);
 
   const isPreviewable = useMemo(() => {
+    if (!response) return null;
     const ct = responseInfo?.contentType.toLowerCase() || "";
-    const body = response?.body || "";
+    const body = displayBody || "";
+    if (isStreamingActive) return null;
     if (ct.includes("text/html")) return "html";
     if (ct.includes("image/svg+xml") || body.trim().startsWith("<svg")) return "svg";
     if (body.trim().startsWith("data:image")) return "image";
     return null;
-  }, [responseInfo, response]);
+  }, [responseInfo, displayBody, isStreamingActive, response]);
 
-  if (isLoading) {
+  if (isLoading && !isStreamingActive) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -226,7 +289,7 @@ export function ResponseViewer() {
     );
   }
 
-  if (!response) {
+  if (!response && !isStreamingActive) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
         <p className="text-sm">Send a request to see the response</p>
@@ -234,8 +297,32 @@ export function ResponseViewer() {
     );
   }
 
+  if (isStreamingActive && !response) {
+    return (
+      <div className="flex-1 flex flex-col">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+          <Badge variant="outline" className="text-[10px] gap-1 font-mono text-primary border-primary/30">
+            <Radio className="size-2.5 animate-pulse" />
+            Connecting...
+          </Badge>
+          {streamedBody && (
+            <span className="text-xs text-muted-foreground font-mono">{formatBytes(streamBytesCount)}</span>
+          )}
+        </div>
+        <pre
+          ref={bodyRef}
+          className="flex-1 p-3 font-mono text-xs text-foreground whitespace-pre-wrap break-words overflow-auto"
+        >
+          {streamedBody}
+        </pre>
+      </div>
+    );
+  }
+
+  if (!response) return null;
+
   const handleCopy = (format?: string) => {
-    let text = response.body;
+    let text = isStreamingActive ? displayBody : response.body;
     if (format === "minified" && isJson) {
       text = JSON.stringify(JSON.parse(response.body));
     } else if (format === "js" && isJson) {
@@ -260,7 +347,7 @@ export function ResponseViewer() {
 
   const handleDownload = () => {
     downloadCounter.current += 1;
-    const blob = new Blob([response.body], { type: "text/plain" });
+    const blob = new Blob([isStreamingActive ? displayBody : response.body], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -289,10 +376,34 @@ export function ResponseViewer() {
             style={{ width: `${Math.min((timingBar?.ms || 0) / 10, 100)}%` }}
           />
         </div>
-        <span className="text-xs text-muted-foreground font-mono">
-          {formatBytes(response.size)}
-        </span>
+        {isStreamingActive && (
+          <>
+            <Badge variant="outline" className="text-[10px] gap-1 font-mono text-primary border-primary/30">
+              <Radio className="size-2.5 animate-pulse" />
+              <span>{formatDuration(streamElapsed)}</span>
+            </Badge>
+            <span className="text-xs text-muted-foreground font-mono">
+              {formatBytes(streamBytesCount)}
+            </span>
+          </>
+        )}
+        {!isStreamingActive && (
+          <span className="text-xs text-muted-foreground font-mono">
+            {formatBytes(response.size)}
+          </span>
+        )}
         <div className="flex-1" />
+        {isStreamingActive && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => setAutoScroll(!autoScroll)}
+            className={cn(autoScroll && "text-primary")}
+            title={autoScroll ? "Auto-scroll enabled" : "Auto-scroll disabled"}
+          >
+            <Layers className="size-3" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon-xs"
@@ -302,7 +413,7 @@ export function ResponseViewer() {
         >
           <WrapText className="size-3" />
         </Button>
-        <ResponseSearch body={response.body} />
+        <ResponseSearch body={displayBody} />
         <DropdownMenu>
           <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
             <Copy className="size-3" />
@@ -388,6 +499,14 @@ export function ResponseViewer() {
                 Diff
               </TabsTrigger>
             )}
+            {sseEvents && (
+              <TabsTrigger
+                value="events"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-2.5 py-1 text-xs font-medium"
+              >
+                Events ({sseEvents.length})
+              </TabsTrigger>
+            )}
           </TabsList>
           {isJson && (
             <div className="flex items-center gap-0.5">
@@ -438,17 +557,18 @@ export function ResponseViewer() {
           </div>
         )}
 
-        <TabsContent value="body" className="flex-1 m-0 overflow-auto">
+        <TabsContent value="body" className="flex-1 m-0 overflow-hidden">
           {viewMode === "preview" && isJson ? (
-            <JsonViewer data={response.body} className="h-full" />
+            <JsonViewer data={displayBody} className="h-full" />
           ) : (
             <pre
+              ref={bodyRef}
               className={cn(
-                "p-3 font-mono text-xs text-foreground",
-                wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre overflow-x-auto"
+                "p-3 font-mono text-xs text-foreground h-full overflow-auto",
+                wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
               )}
             >
-              {response.body}
+              {displayBody}
             </pre>
           )}
         </TabsContent>
@@ -538,6 +658,25 @@ export function ResponseViewer() {
         {previousResponse && (
           <TabsContent value="diff" className="flex-1 m-0 overflow-hidden">
             <ResponseDiff previous={previousResponse} current={response} />
+          </TabsContent>
+        )}
+        {sseEvents && (
+          <TabsContent value="events" className="flex-1 m-0 overflow-auto">
+            <div className="p-3 space-y-2">
+              {sseEvents.map((evt, i) => (
+                <div key={i} className="p-2 rounded-lg border border-border bg-muted/30 space-y-1">
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+                    {evt.event && <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">{evt.event}</Badge>}
+                    {evt.id && <span>id: {evt.id}</span>}
+                    {evt.retry !== undefined && <span>retry: {evt.retry}ms</span>}
+                    <span className="ml-auto">#{i + 1}</span>
+                  </div>
+                  <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-words mt-1">
+                    {evt.data}
+                  </pre>
+                </div>
+              ))}
+            </div>
           </TabsContent>
         )}
       </Tabs>

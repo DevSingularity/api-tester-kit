@@ -8,6 +8,11 @@ interface SendRequestOptions {
   signal?: AbortSignal;
 }
 
+interface SendStreamingRequestOptions extends SendRequestOptions {
+  onResponseInit?: (status: number, statusText: string, headers: Record<string, string>) => void;
+  onChunk: (chunk: string) => void;
+}
+
 function buildHeaders(
   request: ApiRequest,
   variables: Record<string, string>
@@ -213,4 +218,132 @@ export async function sendRequest({
     signal,
     body: body && request.method !== "GET" && request.method !== "HEAD" ? body : undefined,
   });
+}
+
+export async function sendStreamingRequest({
+  request,
+  proxyMode,
+  variables,
+  signal,
+  onResponseInit,
+  onChunk,
+}: SendStreamingRequestOptions): Promise<ApiResponse> {
+  const url = buildUrl(request, variables);
+  const headers = buildHeaders(request, variables);
+  const body = buildBody(request, variables);
+  const clientStart = performance.now();
+
+  const fetchInit: RequestInit = {
+    method: request.method,
+    headers,
+    signal,
+    body: body && request.method !== "GET" && request.method !== "HEAD" ? body : undefined,
+  };
+
+  function extractHeaders(respHeaders: Headers): Record<string, string> {
+    const result: Record<string, string> = {};
+    respHeaders.forEach((value, key) => { result[key] = value; });
+    return result;
+  }
+
+  if (proxyMode === "proxy") {
+    throw new Error("Streaming is not supported through the proxy. Switch to direct or auto mode.");
+  }
+
+  try {
+    const response = await fetch(proxyMode === "auto" ? url : url, fetchInit);
+    const clientHeadersEnd = performance.now();
+    const responseHeaders = extractHeaders(response.headers);
+    const responseStatus = response.status;
+    const responseStatusText = response.statusText;
+
+    if (proxyMode === "auto") {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const proxyResponse = await response.json();
+        const clientBodyEnd = performance.now();
+        const finalBody = proxyResponse.body ?? "";
+        onChunk(finalBody);
+        return {
+          status: proxyResponse.status ?? responseStatus,
+          statusText: proxyResponse.statusText ?? responseStatusText,
+          headers: proxyResponse.headers ?? responseHeaders,
+          body: finalBody,
+          time: proxyResponse.time ?? clientBodyEnd - clientStart,
+          size: proxyResponse.size ?? new Blob([finalBody]).size,
+          timestamp: new Date().toISOString(),
+          timing: proxyResponse.timing || {
+            ttfb: Math.round(clientHeadersEnd - clientStart),
+            download: Math.round(clientBodyEnd - clientHeadersEnd),
+            total: Math.round(clientBodyEnd - clientStart),
+          },
+        };
+      }
+    }
+
+    onResponseInit?.(responseStatus, responseStatusText, responseHeaders);
+    let streamedBody = "";
+    const reader = response.body?.getReader();
+    if (!reader) {
+      const text = await response.text();
+      onChunk(text);
+      const finalTime = performance.now() - clientStart;
+      return {
+        status: responseStatus,
+        statusText: responseStatusText,
+        headers: responseHeaders,
+        body: text,
+        time: finalTime,
+        size: new Blob([text]).size,
+        timestamp: new Date().toISOString(),
+        timing: {
+          ttfb: Math.round(clientHeadersEnd - clientStart),
+          download: Math.round(finalTime - (clientHeadersEnd - clientStart)),
+          total: Math.round(finalTime),
+        },
+      };
+    }
+
+    const decoder = new TextDecoder();
+    let done = false;
+
+    while (!done) {
+      const { done: isDone, value } = await reader.read();
+      done = isDone;
+      if (value) {
+        const chunk = decoder.decode(value, { stream: !done });
+        streamedBody += chunk;
+        onChunk(chunk);
+      }
+    }
+
+    const clientBodyEnd = performance.now();
+    return {
+      status: responseStatus,
+      statusText: responseStatusText,
+      headers: responseHeaders,
+      body: streamedBody,
+      time: clientBodyEnd - clientStart,
+      size: new Blob([streamedBody]).size,
+      timestamp: new Date().toISOString(),
+      timing: {
+        ttfb: Math.round(clientHeadersEnd - clientStart),
+        download: Math.round(clientBodyEnd - clientHeadersEnd),
+        total: Math.round(clientBodyEnd - clientStart),
+      },
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    const errorMessage = error instanceof Error ? error.message : "Request failed";
+    const finalTime = performance.now() - clientStart;
+    return {
+      status: 0,
+      statusText: "Error",
+      headers: {},
+      body: JSON.stringify({ error: errorMessage }),
+      time: finalTime,
+      size: 0,
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

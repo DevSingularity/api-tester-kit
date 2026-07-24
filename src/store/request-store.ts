@@ -29,6 +29,8 @@ interface RequestStore {
   proxyMode: ProxyMode;
   cancelControllers: Record<string, AbortController>;
   testResults: Record<string, ScriptResultData | null>;
+  streamingBody: Record<string, string>;
+  isStreaming: Record<string, boolean>;
 
   createTab: (request?: Partial<ApiRequest>) => string;
   duplicateTab: (tabId: string) => void;
@@ -51,6 +53,9 @@ interface RequestStore {
   setCancelController: (requestId: string, controller: AbortController) => void;
   cancelRequest: (requestId: string) => void;
   setTestResults: (requestId: string, results: ScriptResultData | null) => void;
+  appendStreamChunk: (requestId: string, chunk: string) => void;
+  resetStreaming: (requestId: string) => void;
+  stopStreaming: (requestId: string) => void;
   getActiveRequest: () => ApiRequest | null;
   getActiveResponse: () => ApiResponse | null;
 }
@@ -90,6 +95,8 @@ export const useRequestStore = create<RequestStore>()(
       proxyMode: "proxy" as ProxyMode,
       cancelControllers: {},
       testResults: {},
+      streamingBody: {},
+      isStreaming: {},
 
       createTab: (requestOverrides) => {
         const request = createDefaultRequest(requestOverrides);
@@ -154,11 +161,21 @@ export const useRequestStore = create<RequestStore>()(
             newActiveId = newTabs[Math.min(idx, newTabs.length - 1)]?.id ?? null;
           }
 
+          const newStreamingBody = { ...state.streamingBody };
+          delete newStreamingBody[tab.requestId];
+          const newIsStreaming = { ...state.isStreaming };
+          delete newIsStreaming[tab.requestId];
+          const newTestResults = { ...state.testResults };
+          delete newTestResults[tab.requestId];
+
           return {
             tabs: newTabs,
             activeTabId: newActiveId,
             requests: newRequests,
             responses: newResponses,
+            streamingBody: newStreamingBody,
+            isStreaming: newIsStreaming,
+            testResults: newTestResults,
           };
         });
       },
@@ -287,6 +304,26 @@ export const useRequestStore = create<RequestStore>()(
       setTestResults: (requestId, results) =>
         set((state) => ({
           testResults: { ...state.testResults, [requestId]: results },
+        })),
+
+      appendStreamChunk: (requestId, chunk) =>
+        set((state) => ({
+          streamingBody: {
+            ...state.streamingBody,
+            [requestId]: (state.streamingBody[requestId] ?? "") + chunk,
+          },
+          isStreaming: { ...state.isStreaming, [requestId]: true },
+        })),
+
+      resetStreaming: (requestId) =>
+        set((state) => ({
+          streamingBody: { ...state.streamingBody, [requestId]: "" },
+          isStreaming: { ...state.isStreaming, [requestId]: false },
+        })),
+
+      stopStreaming: (requestId) =>
+        set((state) => ({
+          isStreaming: { ...state.isStreaming, [requestId]: false },
         })),
 
       getActiveRequest: () => {
